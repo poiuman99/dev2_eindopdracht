@@ -1,0 +1,6 @@
+<h1><%= title %> #<%= id %></h1>
+<p><%= tip %></p>
+<% if (id !== 1) { %>
+    <a href="/tip/<%= id-1 %>">Vorige tip</a>
+<% } %>
+<a href="/tip/<%= id+1 %>">Volgende tip</a>

@@ -1,20 +1,18 @@
 import express, { Request, Response, Router } from "express";
-
 const router: Router = express.Router();
 
-// Homepagina
-router.get("/", (req: Request, res: Response): void => {
-  res.render("index", { title: "Quiz" });
-});
+// Correcte importpaden (afhankelijk van je bestandsstructuur)
+import { MenuItem } from "./services/interfaces";
+import { getAllBurgers } from "./services/menuService";
 
-// Quiz verwerken
-router.post("/quiz", (req: Request, res: Response): void => {
-  const correctAntwoord: string = "Parijs";
-  const userAntwoord: string = req.body.answer?.trim() || "";
-  const isCorrect: boolean = userAntwoord.toLowerCase() === correctAntwoord.toLowerCase();
-  const message: string = isCorrect ? "Correct! 🎉" : "Fout! 😢 Probeer opnieuw.";
-
-  res.render("result", { title: "Quiz resultaat", boodschap: message });
+router.get("/burgers", async (req: Request, res: Response) => {
+  try {
+    const burgers: MenuItem[] = await getAllBurgers();
+    res.render("burgers", { burgers: burgers, title: "Onze Burgers" });
+  } catch (error) {
+    console.error('Error handling /burgers route:', error);
+    res.status(500).send('Er is een fout opgetreden bij het ophalen van de burgers.');
+  }
 });
 
 export default router;
