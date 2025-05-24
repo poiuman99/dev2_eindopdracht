@@ -1,14 +1,7 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title><%= title %></title>
-</head>
-<body>
-  <h1><%= title %></h1>
+
+ <h1><%= title %></h1>
   <ul>
     <% burgers.forEach(burger => { %>
       <li><%= burger.name %> - €<%= burger.price.toFixed(2) %></li>
     <% }); %>
   </ul>
-</body>
-</html>

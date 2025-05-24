@@ -1,5 +1,80 @@
-<h2>Wat is de hoofdstad van Frankrijk?</h2>
-<form action="/quiz" method="POST">
-    <input type="text" name="answer" required>
-    <button type="submit">Versturen</button>
-</form>
+<h1><%= title %></h1>
+<p><%= introText %></p>
+
+<div class="menu-items-container">
+    <% if (menuItems && menuItems.length > 0) { %>
+        <% menuItems.forEach(function(item) { %>
+            <div class="menu-item-card">
+                <h3><%= item.name %></h3>
+                <p class="price">€<%= item.price.toFixed(2) %></p>
+                <% if (item.description) { %>
+                    <p class="description"><%= item.description %></p>
+                <% } %>
+            </div>
+        <% }); %>
+    <% } else { %>
+        <p>Geen menu-items gevonden op dit moment. Kom later terug!</p>
+    <% } %>
+</div>
+
+<style>
+    /* Voeg hier wat basis CSS toe voor een mooiere presentatie */
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f8f8f8; /* Lichtere achtergrond */
+        color: #333;
+        line-height: 1.6;
+    }
+    h1 {
+        color: #3498db; /* Blauwe tint voor titel */
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    p {
+        text-align: center;
+        font-size: 1.1em;
+        margin-bottom: 30px;
+    }
+    .menu-items-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center; /* Centreer de kaarten */
+        gap: 30px; /* Meer ruimte tussen kaarten */
+        padding: 20px;
+        max-width: 1200px; /* Maximale breedte voor de container */
+        margin: 0 auto; /* Centreer de container */
+    }
+    .menu-item-card {
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px; /* Rondere hoeken */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Sterkere schaduw */
+        padding: 20px;
+        width: 280px; /* Iets breder voor meer inhoud */
+        text-align: left; /* Tekst links uitlijnen */
+        transition: transform 0.2s ease-in-out; /* Animatie bij hover */
+    }
+    .menu-item-card:hover {
+        transform: translateY(-5px); /* Lift-effect bij hover */
+    }
+    .menu-item-card h3 {
+        margin-top: 0;
+        color: #2c3e50; /* Donkerdere kleur voor itemtitel */
+        font-size: 1.5em;
+        border-bottom: 1px solid #eee; /* Scheidingslijn onder titel */
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .menu-item-card .price {
+        font-size: 1.4em; /* Grotere prijs */
+        font-weight: bold;
+        color: #27ae60; /* Groene kleur voor prijs */
+        margin-bottom: 15px;
+    }
+    .menu-item-card .description {
+        font-size: 0.95em;
+        color: #7f8c8d; /* Lichtere kleur voor beschrijving */
+        line-height: 1.4;
+    }
+</style>
