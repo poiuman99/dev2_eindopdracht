@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 // Pas de importnamen aan naar de daadwerkelijke namen in imageService
-import { uploadAndOptimizeImage, deleteImageFromStorage } from '../services/imageService'; // <-- PAS DIT PAD AAN
+
 import db from '../services/db'; // <-- PAS DIT PAD AAN
 
 // Functie om de pagina te tonen voor het toevoegen van een product
@@ -16,13 +16,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         const { name, price, description, category_id, options } = req.body;
 
         let imageUrl: string | null = null;
-        if (req.file) {
-            const bucketName = process.env.SUPABASE_BUCKET_NAME as string;
-            if (!bucketName) {
-                throw new Error("SUPABASE_BUCKET_NAME is niet geconfigureerd.");
-            }
-            imageUrl = await uploadAndOptimizeImage(req.file.buffer, req.file.originalname, bucketName);
-        }
+       
+        
 
         // --- AANPASSING HIER ---
         // Gebruik de 'postgres' library syntax met template literals
@@ -79,13 +74,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
                 throw new Error("SUPABASE_BUCKET_NAME is niet geconfigureerd.");
             }
 
-            if (existing_image_url && typeof existing_image_url === 'string' && existing_image_url.startsWith('http')) {
-                const deleted = await deleteImageFromStorage(existing_image_url, bucketName);
-                if (!deleted) {
-                    console.warn(`Kon oude afbeelding ${existing_image_url} niet verwijderen.`);
-                }
-            }
-            imageUrl = await uploadAndOptimizeImage(req.file.buffer, req.file.originalname, bucketName);
+        
         }
 
         // --- AANPASSING HIER ---
@@ -120,17 +109,8 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
             DELETE FROM products WHERE id = ${productId}
         `;
 
-        if (imageUrlToDelete && typeof imageUrlToDelete === 'string' && imageUrlToDelete.startsWith('http')) {
-            const bucketName = process.env.SUPABASE_BUCKET_NAME as string;
-            if (bucketName) {
-                const deleted = await deleteImageFromStorage(imageUrlToDelete, bucketName);
-                if (!deleted) {
-                    console.warn(`Kon afbeelding ${imageUrlToDelete} niet verwijderen na product delete.`);
-                }
-            } else {
-                console.warn("SUPABASE_BUCKET_NAME niet geconfigureerd, kan afbeelding niet verwijderen.");
-            }
-        }
+       
+        
 
         res.redirect('/admin/products');
     } catch (error) {

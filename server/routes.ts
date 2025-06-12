@@ -16,12 +16,6 @@ import {
     deleteProduct
 } from "./services/menuService"; // Let op: './services/menuService' als menuService in server/services/ staat
 
-// Importeer functies uit imageService met de CORRECTE NAMEN
-import {
-    uploadAndOptimizeImage,
-    deleteImageFromStorage
-} from "./services/imageService"; // Let op: './services/imageService' als imageService in server/services/ staat
-
 // Importeer MenuItem interface
 import { MenuItem } from "./services/interfaces"; // Zorg dat dit pad en de interface kloppen
 
@@ -182,10 +176,7 @@ router.post("/admin/products/add", upload.single('image'), async (req: Request, 
         const file = req.file;
         let imageUrl: string | null = null;
 
-        if (file) {
-            // Gebruik de CORRECTE FUNCTIE NAAM
-            imageUrl = await uploadAndOptimizeImage(file.buffer, file.originalname, file.mimetype);
-        }
+      
 
         let parsedOptions = null;
         if (options && options.trim() !== '') {
@@ -248,17 +239,7 @@ router.post("/admin/products/edit/:id", upload.single('image'), async (req: Requ
         const file = req.file;
         let imageUrl: string | null = currentImageUrl || null;
 
-        if (file) {
-            if (currentImageUrl && SUPABASE_BUCKET_NAME) { // Voeg null check toe
-                await deleteImageFromStorage(currentImageUrl, SUPABASE_BUCKET_NAME); // <--- FIX: Voeg bucketName toe
-            }
-            if (SUPABASE_BUCKET_NAME) { // Voeg null check toe
-                imageUrl = await uploadAndOptimizeImage(file.buffer, file.originalname, file.mimetype);
-            } else {
-                console.warn("Afbeelding upload overgeslagen: SUPABASE_BUCKET_NAME niet geconfigureerd.");
-            }
-        }
-
+      
         let parsedOptions = null;
         if (options && options.trim() !== '') {
             try {
@@ -302,10 +283,6 @@ router.post("/admin/products/delete/:id", async (req: Request, res: Response, ne
         if (!productToDelete) {
             res.status(404).send('Product niet gevonden om te verwijderen.');
             return; // Expliciet return na res.send
-        }
-
-        if (productToDelete.imageUrl && SUPABASE_BUCKET_NAME) { // Voeg null check toe
-            await deleteImageFromStorage(productToDelete.imageUrl, SUPABASE_BUCKET_NAME); // <--- FIX: Voeg bucketName toe
         }
 
         await deleteProduct(productId);
