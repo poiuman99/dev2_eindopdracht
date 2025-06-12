@@ -2,6 +2,8 @@ import express, { Application } from "express";
 import path from "path";
 import expressLayouts from "express-ejs-layouts";
 import routes from "./routes";
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app: Application = express();
 const PORT: number = 3000;

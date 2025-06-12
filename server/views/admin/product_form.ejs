@@ -1,0 +1,129 @@
+<div class="admin-panel form-panel">
+    <h1><%= title %></h1>
+    <p><%= message %></p>
+
+    <form action="<%= product ? '/admin/products/edit/' + product.id : '/admin/products/add' %>" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Naam:</label>
+            <input type="text" id="name" name="name" value="<%= product ? product.name : '' %>" required>
+        </div>
+
+        <div class="form-group">
+            <label for="price">Prijs (€):</label>
+            <input type="number" id="price" name="price" value="<%= product ? product.price.toFixed(2) : '' %>" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Beschrijving:</label>
+            <textarea id="description" name="description" rows="4"><%= product ? product.description : '' %></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="categoryId">Categorie:</label>
+            <select id="categoryId" name="categoryId" required>
+                <option value="">Kies een categorie</option>
+                <% if (categories && categories.length > 0) { %>
+                    <% categories.forEach(cat => { %>
+                        <option value="<%= cat.id %>" <%= product && product.categoryId === cat.id ? 'selected' : '' %>>
+                            <%= cat.name %>
+                        </option>
+                    <% }) %>
+                <% } %>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="image">Afbeelding:</label>
+            <input type="file" id="image" name="image" accept="image/*">
+            <% if (product && product.imageUrl) { %>
+                <p>Huidige afbeelding:</p>
+                <img src="<%= product.imageUrl %>" alt="<%= product.name %>" class="current-image-thumb">
+                <input type="hidden" name="currentImageUrl" value="<%= product.imageUrl %>">
+            <% } %>
+        </div>
+
+        <div class="form-group">
+            <label for="options">Opties (JSON, optioneel):</label>
+            <textarea id="options" name="options" rows="6" placeholder='[{"name": "Grootte", "choices": [{"label": "Normaal", "price_change": 0}, {"label": "Groot", "price_change": 1.00}]}]'><%= product && product.options ? JSON.stringify(product.options, null, 2) : '' %></textarea>
+            <small>Voer opties in als een JSON-array (zie placeholder voor voorbeeld).</small>
+        </div>
+
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><%= product ? 'Product Opslaan' : 'Product Toevoegen' %></button>
+            <a href="/admin/products" class="btn btn-secondary">Annuleer</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    /* Voeg deze CSS toe aan je server/public/css/styles.css */
+    .form-panel {
+        background-color: rgba(0, 0, 0, 0.4);
+        padding: 30px 40px;
+        margin-top: 30px;
+    }
+    .form-group {
+        margin-bottom: 20px;
+        text-align: left; /* Zorgt dat labels en inputs links uitlijnen */
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        color: #FFD700; /* Goudkleur voor labels */
+        font-size: 1.1em;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+        width: calc(100% - 20px); /* Neem bijna de volle breedte, rekening houdend met padding */
+        padding: 12px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 5px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        font-size: 1em;
+        box-sizing: border-box; /* Belangrijk voor padding/border */
+    }
+    .form-group textarea {
+        resize: vertical; /* Sta verticale resizing toe */
+        min-height: 80px;
+    }
+    .form-group input[type="file"] {
+        padding: 10px 0;
+    }
+    .form-group input[type="file"]::file-selector-button {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .form-group input[type="file"]::file-selector-button:hover {
+        background-color: #0056b3;
+    }
+    .form-group small {
+        display: block;
+        margin-top: 5px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9em;
+    }
+    .current-image-thumb {
+        max-width: 150px;
+        height: auto;
+        border-radius: 5px;
+        margin-top: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    .form-actions {
+        text-align: right; /* Knoppen rechts uitlijnen */
+        margin-top: 30px;
+    }
+    .form-actions .btn {
+        margin-left: 15px;
+    }
+</style>

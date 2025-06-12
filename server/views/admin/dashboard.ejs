@@ -1,0 +1,71 @@
+<div class="admin-dashboard">
+    <h1><%= title %></h1>
+    <p><%= message %></p>
+
+    <div class="dashboard-links">
+        <a href="/admin/products" class="dashboard-btn">Producten Beheren</a>
+        <a href="/admin/categories" class="dashboard-btn">Categorieën Beheren</a>
+        <a href="/admin/orders" class="dashboard-btn">Bestellingen Beheren</a>
+        <a href="/admin/stats" class="dashboard-btn">Statistieken Bekijken</a>
+    </div>
+</div>
+
+<style>
+    /* Voeg deze CSS toe aan je styles.css of hier tijdelijk */
+    .admin-dashboard {
+        padding: 40px;
+        text-align: center;
+        background-color: rgba(0, 0, 0, 0.3); /* Donkerder, semi-transparant paneel */
+        border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        max-width: 800px;
+        margin: 50px auto; /* Centraal op de pagina */
+    }
+
+    .admin-dashboard h1 {
+        font-size: 2.5rem;
+        color: #FFD700; /* Goudkleur */
+    }
+
+    .admin-dashboard p {
+        font-size: 1.1rem;
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 30px;
+    }
+
+    .dashboard-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .dashboard-btn {
+        background: #fff;
+        color: #6a11cb;
+        padding: 1.2rem 2.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
+        flex: 1 1 calc(50% - 20px); /* Twee knoppen per rij op bredere schermen */
+        max-width: 300px; /* Max breedte per knop */
+    }
+
+    .dashboard-btn:hover {
+        background: #6a11cb;
+        color: #fff;
+        transform: translateY(-5px);
+    }
+
+    /* Media query voor kleinere schermen */
+    @media (max-width: 768px) {
+        .dashboard-btn {
+            flex: 1 1 100%; /* Knoppen onder elkaar op kleinere schermen */
+            max-width: none;
+        }
+    }
+</style>

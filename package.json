@@ -11,15 +11,20 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
+    "@types/multer": "^1.4.13",
+    "dotenv": "^16.5.0",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
     "express-ejs-layouts": "^2.5.1",
+    "multer": "^2.0.1",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
     "@types/ejs": "^3.1.5",
     "@types/express": "^5.0.1",
     "@types/express-ejs-layouts": "^2.5.4",
+    "@types/node": "^24.0.1",
     "nodemon": "^3.1.10",
     "supabase": "^2.22.12",
     "ts-node": "^10.9.2",
