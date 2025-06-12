@@ -1,104 +1,97 @@
 // server/services/imageService.ts
 
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv'; // Voor toegang tot omgevingsvariabelen
+import sharp from 'sharp';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-dotenv.config(); // Laad omgevingsvariabelen vanuit .env
-
-// Controleer of de omgevingsvariabelen bestaan
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-// Standaard bucket naam, pas dit aan naar je daadwerkelijke bucket naam in Supabase Storage
-const supabaseBucket = process.env.SUPABASE_BUCKET_NAME || 'frietkot_images'; // <-- Pas deze naam aan als je bucket anders heet!
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env file.");
+    console.error("Supabase URL of Anon Key is niet geconfigureerd in .env. Afbeelding upload zal niet werken.");
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase: SupabaseClient = createClient(supabaseUrl as string, supabaseAnonKey as string);
 
 /**
- * Uploadt een afbeelding naar Supabase Storage.
- * @param fileBuffer De buffer van het bestand.
- * @param fileName De originele bestandsnaam (voor extensie en unieke naam).
- * @param mimetype Het MIME-type van het bestand (e.g., 'image/jpeg').
- * @returns De openbare URL van de geüploade afbeelding.
+ * Uploadt een afbeelding naar Supabase Storage na optimalisatie met Sharp.
+ * @param fileBuffer De binaire data van de afbeelding (van Multer).
+ * @param originalFileName De originele bestandsnaam van de afbeelding.
+ * @param bucketName De naam van de Supabase Storage bucket.
+ * @returns De publieke URL van de geüploade afbeelding, of null als er een fout optreedt.
  */
-export async function uploadImage(fileBuffer: Buffer, fileName: string, mimetype: string): Promise<string> {
-    // Genereer een unieke bestandsnaam om conflicten te voorkomen
-    // Bijvoorbeeld: 1678888888888-abcdefg-original_name.jpg
-    const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}-${fileName}`;
-    const filePath = `public/${uniqueFileName}`; // Pad binnen de bucket (mappenstructuur)
+export async function uploadAndOptimizeImage(fileBuffer: Buffer, originalFileName: string, bucketName: string): Promise<string | null> {
+    // ... (rest van deze functie code zoals eerder besproken) ...
+    if (!fileBuffer || !bucketName) {
+        console.error("Missing file buffer or bucket name for image upload.");
+        return null;
+    }
+
+    const fileExtension = originalFileName.split('.').pop();
+    const fileNameWithoutExt = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
+    const uniqueFileName = `${fileNameWithoutExt}-${Date.now()}.webp`;
 
     try {
+        const optimizedBuffer = await sharp(fileBuffer)
+            .resize(800)
+            .webp({ quality: 80 })
+            .toBuffer();
+
         const { data, error } = await supabase.storage
-            .from(supabaseBucket)
-            .upload(filePath, fileBuffer, {
-                contentType: mimetype,
-                upsert: false // Niet overschrijven als bestand al bestaat
+            .from(bucketName)
+            .upload(uniqueFileName, optimizedBuffer, {
+                cacheControl: '3600',
+                upsert: true,
+                contentType: 'image/webp'
             });
 
         if (error) {
-            console.error('Supabase upload error:', error);
-            throw new Error(`Afbeelding uploaden mislukt: ${error.message}`);
+            console.error('Fout bij uploaden geoptimaliseerde afbeelding:', error.message);
+            return null;
         }
 
-        // De openbare URL van de geüploade afbeelding ophalen
-        const { data: publicUrlData } = supabase.storage
-            .from(supabaseBucket)
-            .getPublicUrl(filePath);
-
-        if (!publicUrlData || !publicUrlData.publicUrl) {
-            throw new Error("Kon geen publieke URL voor de geüploade afbeelding krijgen.");
-        }
-
-        console.log(`Afbeelding succesvol geüpload: ${publicUrlData.publicUrl}`);
+        const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(data.path);
         return publicUrlData.publicUrl;
+
     } catch (error: any) {
-        console.error('Error in uploadImage:', error);
-        throw new Error('Fout bij uploaden afbeelding: ' + (error.message || error));
+        console.error('Fout bij verwerken of uploaden afbeelding:', error.message || error);
+        return null;
     }
 }
 
 /**
  * Verwijdert een afbeelding uit Supabase Storage.
- * @param imageUrl De volledige URL van de afbeelding die moet worden verwijderd.
+ * @param imageUrl De volledige URL van de afbeelding die verwijderd moet worden.
+ * @param bucketName De naam van de Supabase Storage bucket.
+ * @returns true als de verwijdering succesvol was, anders false.
  */
-export async function deleteImage(imageUrl: string): Promise<void> {
+export async function deleteImageFromStorage(imageUrl: string, bucketName: string): Promise<boolean> {
+    // ... (rest van deze functie code zoals eerder besproken) ...
+    if (!imageUrl || !bucketName) {
+        console.error("Missing image URL or bucket name for image deletion.");
+        return false;
+    }
+
     try {
-        // Controleer of het een geldige Supabase Storage URL is
-        if (!imageUrl || !imageUrl.includes('supabase.co/storage/v1/object/public/')) {
-            console.warn(`Skipping image deletion: URL does not appear to be a Supabase Storage URL: ${imageUrl}`);
-            return; // Ga verder zonder te proberen een niet-Supabase URL te verwijderen
+        const pathSegments = imageUrl.split('/');
+        const fileName = pathSegments[pathSegments.length - 1];
+
+        if (!fileName) {
+            console.error("Could not extract file name from URL:", imageUrl);
+            return false;
         }
 
-        // Extraheer het pad van de afbeelding uit de URL
-        // De URL is typisch van de vorm: https://[project_id].supabase.co/storage/v1/object/public/[bucket_name]/[path/to/file.ext]
-        // We moeten het deel na de bucket naam hebben.
-        const urlParts = imageUrl.split(supabaseBucket + '/');
-        if (urlParts.length < 2) {
-            console.warn(`Could not parse image URL for deletion: ${imageUrl}. Skipping deletion.`);
-            return;
-        }
-        const filePathInBucket = urlParts[1]; // Dit is het 'path/to/file.ext' deel
-
-        const { error } = await supabase.storage
-            .from(supabaseBucket)
-            .remove([filePathInBucket]); // Verwacht een array van paden
+        const { error } = await supabase.storage.from(bucketName).remove([fileName]);
 
         if (error) {
-            // "Object not found" is geen echte fout bij verwijderen als het bestand er al niet is
-            if (error.message === "Object not found") {
-                console.warn(`Image to delete not found in bucket: ${filePathInBucket}. Continuing anyway.`);
-            } else {
-                console.error('Supabase delete error:', error);
-                throw new Error(`Afbeelding verwijderen mislukt: ${error.message}`);
-            }
-        } else {
-            console.log(`Afbeelding succesvol verwijderd: ${imageUrl}`);
+            console.error('Fout bij verwijderen afbeelding uit Storage:', error.message);
+            return false;
         }
+
+        return true;
     } catch (error: any) {
-        console.error('Error in deleteImage:', error);
-        throw new Error('Fout bij verwijderen afbeelding: ' + (error.message || error));
+        console.error('Fout bij verwerken verwijdering afbeelding:', error.message || error);
+        return false;
     }
 }

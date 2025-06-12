@@ -1,7 +1,7 @@
 // controllers/pageController.ts
 
 import { Request, Response } from "express";
-import { getAllCategories } from "../server/services/menuService"; // Pad aanpassen naar je menuService
+import { getAllCategories } from "../services/menuService"; // Pad aanpassen naar je menuService
 
 export async function renderHomePage(req: Request, res: Response) {
     try {

@@ -1,29 +1,42 @@
 // server/routes.ts
 
-import express, { Request, Response, Router } from "express";
-import multer from "multer"; // <-- NIEUWE IMPORT
-import path from "path";     // <-- NIEUWE IMPORT (voor bestandspaden)
+import express, { Request, Response, Router, NextFunction } from "express";
+import multer from "multer";
+import path from "path";
 const router: Router = express.Router();
 
-// Update deze importregel met alle functies die je nodig hebt uit menuService
+// Importeer functies uit menuService (controleer of deze namen kloppen met wat menuService exporteert)
 import {
     getProductsByCategoryName,
     getAllCategories,
     getAllProductsWithCategoryName,
-    getProductById, // <-- NIEUWE IMPORT
-    addProduct,     // <-- NIEUWE IMPORT
-    updateProduct,  // <-- NIEUWE IMPORT
-    deleteProduct   // <-- NIEUWE IMPORT
-} from "./services/menuService";
-import { uploadImage, deleteImage } from "./services/imageService"; // <-- NIEUWE IMPORT (deze service maken we zo!)
-import { MenuItem } from "./services/interfaces";
+    getProductById,
+    addProduct,
+    updateProduct,
+    deleteProduct
+} from "./services/menuService"; // Let op: './services/menuService' als menuService in server/services/ staat
+
+// Importeer functies uit imageService met de CORRECTE NAMEN
+import {
+    uploadAndOptimizeImage,
+    deleteImageFromStorage
+} from "./services/imageService"; // Let op: './services/imageService' als imageService in server/services/ staat
+
+// Importeer MenuItem interface
+import { MenuItem } from "./services/interfaces"; // Zorg dat dit pad en de interface kloppen
+
+// Zorg ervoor dat SUPABASE_BUCKET_NAME beschikbaar is in .env en geladen is
+const SUPABASE_BUCKET_NAME = process.env.SUPABASE_BUCKET_NAME;
+if (!SUPABASE_BUCKET_NAME) {
+    console.error("SUPABASE_BUCKET_NAME is niet geconfigureerd in .env. Afbeeldingen zullen niet werken.");
+}
 
 // --- Multer Configuratie voor Afbeelding Uploads ---
 const storage = multer.memoryStorage(); // Opslaan in het geheugen als Buffer
 const upload = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 }, // Max 5MB
-    fileFilter: (req, file, cb) => {
+    fileFilter: (req, file, cb) => { // Verwijder de expliciete type-annotatie 'multer.FileFilterCallback' hier
         const filetypes = /jpeg|jpg|png|gif|webp/;
         const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -31,17 +44,90 @@ const upload = multer({
         if (mimetype && extname) {
             return cb(null, true);
         }
+        // DE FIX IS HIER: Maak een nieuwe Error instantie
         cb(new Error("Error: Alleen afbeeldingen (jpeg, jpg, png, gif, webp) zijn toegestaan!"));
     }
 });
 // --- Einde Multer Configuratie ---
 
 
-// ... (Bestaande routes voor /, /menu, /categorie/:categoryName, /admin) ...
+// =========================================================================
+// ALGEMEEN TOEGANKELIJKE ROUTES (Frontend)
+// =========================================================================
+
+// ROOT Route: Handles GET requests to '/'
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const categories = await getAllCategories(); // Haal categorieën op voor de navigatiebalk/filters
+        const products = await getAllProductsWithCategoryName(); // Haal alle producten op voor de hoofdpagina
+        res.render("index", {
+            title: "Welkom bij Frietkot",
+            categories: categories, // Geef categorieën mee aan de template
+            products: products // Geef producten mee aan de template
+        });
+        return; // Expliciet return na res.render
+    } catch (error) {
+        console.error('Error handling / route:', error);
+        next(error); // Geef de fout door aan de Express foutafhandeling
+    }
+});
+
+// Menu pagina: Alle producten per categorie
+router.get("/menu", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const categories = await getAllCategories();
+        const products = await getAllProductsWithCategoryName();
+
+        res.render("category_menu", {
+            title: "Ons Menu",
+            categories: categories,
+            products: products,
+            selectedCategory: null, // Of iets specifieks
+            introText: "Ontdek al onze heerlijke producten hieronder!" // <-- VOEG DEZE REGEL TOE
+        });
+        return;
+    } catch (error) {
+        console.error('Error handling /menu route:', error);
+        next(error);
+    }
+});
+
+// Menu pagina: Producten per specifieke categorie
+router.get("/categorie/:categoryName", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const categoryName = req.params.categoryName;
+        const categories = await getAllCategories();
+        const products = await getProductsByCategoryName(categoryName);
+
+        res.render("category_menu", {
+            title: `Menu: ${categoryName}`,
+            categories: categories,
+            products: products,
+            selectedCategory: categoryName,
+            introText: `Bekijk hier alle producten in de categorie "${categoryName}".` // <-- VOEG DEZE REGEL TOE
+        });
+        return;
+    } catch (error) {
+        console.error('Error handling /categorie/:categoryName route:', error);
+        next(error);
+    }
+});
 
 
-// Admin Producten Lijst (Bestaande route, geen wijzigingen hier)
-router.get("/admin/products", async (req: Request, res: Response) => {
+// =========================================================================
+// ADMIN ROUTES
+// =========================================================================
+
+// NIEUWE ROUTE: Admin Dashboard / Hoofdpagina Admin
+router.get("/admin", (req: Request, res: Response) => {
+    // Redirect naar de productenlijst, wat waarschijnlijk je hoofd admin overzicht is
+    res.redirect("/admin/products");
+    return; // Belangrijk voor TypeScript en Express om de response te beëindigen
+});
+
+
+// Admin Producten Lijst (Bestaande route, direct hieronder)
+router.get("/admin/products", async (req: Request, res: Response, next: NextFunction) => {
     try {
         const products = await getAllProductsWithCategoryName();
         res.render("admin/products", {
@@ -49,117 +135,138 @@ router.get("/admin/products", async (req: Request, res: Response) => {
             message: "Overzicht van alle producten in het systeem.",
             products: products
         });
+        return;
     } catch (error) {
         console.error('Error handling /admin/products route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het laden van de productenlijst.');
+        next(error);
     }
 });
 
-// NIEUWE ROUTE: Toon Product Toevoegen Formulier
-router.get("/admin/products/add", async (req: Request, res: Response) => {
+// Admin Producten Lijst
+router.get("/admin/products", async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const categories = await getAllCategories(); // Nodig om de dropdown te vullen
+        const products = await getAllProductsWithCategoryName();
+        res.render("admin/products", {
+            title: "Producten Beheren",
+            message: "Overzicht van alle producten in het systeem.",
+            products: products
+        });
+        return; // Expliciet return na res.render
+    } catch (error) {
+        console.error('Error handling /admin/products route:', error);
+        next(error);
+    }
+});
+
+// Toon Product Toevoegen Formulier
+router.get("/admin/products/add", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const categories = await getAllCategories();
         res.render("admin/product_form", {
             title: "Product Toevoegen",
             message: "Vul de details in voor het nieuwe product.",
-            product: null, // Geen product object betekent 'toevoegen'
+            product: null,
             categories: categories
         });
+        return; // Expliciet return na res.render
     } catch (error) {
         console.error('Error handling /admin/products/add GET route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het laden van het toevoegformulier.');
+        next(error);
     }
 });
 
-// NIEUWE ROUTE: Verwerk Product Toevoegen Formulier
-router.post("/admin/products/add", upload.single('image'), async (req: Request, res: Response) => {
+// Verwerk Product Toevoegen Formulier
+router.post("/admin/products/add", upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { name, price, description, categoryId, options } = req.body;
-        const file = req.file; // Afbeelding als Buffer (van multer)
+        const file = req.file;
         let imageUrl: string | null = null;
 
         if (file) {
-            // Upload afbeelding naar Supabase Storage
-            imageUrl = await uploadImage(file.buffer, file.originalname, file.mimetype);
+            // Gebruik de CORRECTE FUNCTIE NAAM
+            imageUrl = await uploadAndOptimizeImage(file.buffer, file.originalname, file.mimetype);
         }
 
-        // Parseer opties (als JSON string, of null als leeg)
         let parsedOptions = null;
         if (options && options.trim() !== '') {
             try {
                 parsedOptions = JSON.parse(options);
             } catch (e) {
                 console.warn('Invalid JSON for options:', options);
-                // Je kunt hier een foutmelding naar de gebruiker sturen indien gewenst
-                return res.status(400).send('Ongeldige JSON voor opties.');
+                res.status(400).send('Ongeldige JSON voor opties.');
+                return; // Expliciet return na res.send
             }
         }
 
         const newProduct = await addProduct(
             name,
             parseFloat(price),
-            description || null, // Maak leeg string naar null
+            description || null,
             parseInt(categoryId),
             imageUrl,
             parsedOptions
         );
 
-        res.redirect('/admin/products'); // Terug naar de productenlijst
+        res.redirect('/admin/products');
+        return; // Expliciet return na res.redirect
     } catch (error) {
         console.error('Error handling /admin/products/add POST route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het toevoegen van het product: ' + (error instanceof Error ? error.message : error));
+        next(error);
     }
 });
 
-// NIEUWE ROUTE: Toon Product Bewerken Formulier
-router.get("/admin/products/edit/:id", async (req: Request, res: Response) => {
+// Toon Product Bewerken Formulier
+router.get("/admin/products/edit/:id", async (req: Request, res: Response, next: NextFunction) => {
     try {
         const productId = parseInt(req.params.id);
-        const product = await getProductById(productId); // Haal specifiek product op
-        const categories = await getAllCategories(); // Nodig om de dropdown te vullen
+        const product = await getProductById(productId);
+        const categories = await getAllCategories();
 
         if (!product) {
-            return res.status(404).send('Product niet gevonden.');
+            res.status(404).send('Product niet gevonden.');
+            return; // Expliciet return na res.send
         }
 
         res.render("admin/product_form", {
             title: `Product Bewerken: ${product.name}`,
             message: `Bewerk de details voor ${product.name}.`,
-            product: product, // Geef het product object mee voor bewerking
+            product: product,
             categories: categories
         });
+        return; // Expliciet return na res.render
     } catch (error) {
         console.error('Error handling /admin/products/edit GET route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het laden van het bewerkingsformulier.');
+        next(error);
     }
 });
 
-// NIEUWE ROUTE: Verwerk Product Bewerken Formulier
-router.post("/admin/products/edit/:id", upload.single('image'), async (req: Request, res: Response) => {
+// Verwerk Product Bewerken Formulier
+router.post("/admin/products/edit/:id", upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const productId = parseInt(req.params.id);
         const { name, price, description, categoryId, options, currentImageUrl } = req.body;
-        const file = req.file; // Nieuwe afbeelding (indien geüpload)
-        let imageUrl: string | null = currentImageUrl || null; // Standaard de huidige URL
+        const file = req.file;
+        let imageUrl: string | null = currentImageUrl || null;
 
-        // Als er een nieuwe afbeelding is geüpload
         if (file) {
-            // Optioneel: Verwijder de oude afbeelding uit Supabase Storage
-            if (currentImageUrl) {
-                await deleteImage(currentImageUrl); // Implementeer deze functie in imageService
+            if (currentImageUrl && SUPABASE_BUCKET_NAME) { // Voeg null check toe
+                await deleteImageFromStorage(currentImageUrl, SUPABASE_BUCKET_NAME); // <--- FIX: Voeg bucketName toe
             }
-            // Upload de nieuwe afbeelding
-            imageUrl = await uploadImage(file.buffer, file.originalname, file.mimetype);
+            if (SUPABASE_BUCKET_NAME) { // Voeg null check toe
+                imageUrl = await uploadAndOptimizeImage(file.buffer, file.originalname, file.mimetype);
+            } else {
+                console.warn("Afbeelding upload overgeslagen: SUPABASE_BUCKET_NAME niet geconfigureerd.");
+            }
         }
 
-        // Parseer opties
         let parsedOptions = null;
         if (options && options.trim() !== '') {
             try {
                 parsedOptions = JSON.parse(options);
             } catch (e) {
                 console.warn('Invalid JSON for options on update:', options);
-                return res.status(400).send('Ongeldige JSON voor opties.');
+                res.status(400).send('Ongeldige JSON voor opties.');
+                return; // Expliciet return na res.send
             }
         }
 
@@ -174,39 +281,41 @@ router.post("/admin/products/edit/:id", upload.single('image'), async (req: Requ
         );
 
         if (!updatedProduct) {
-            return res.status(404).send('Product niet gevonden voor update.');
+            res.status(404).send('Product niet gevonden voor update.');
+            return; // Expliciet return na res.send
         }
-
-        res.redirect('/admin/products'); // Terug naar de productenlijst
-    } catch (error) {
-        console.error('Error handling /admin/products/edit POST route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het bijwerken van het product: ' + (error instanceof Error ? error.message : error));
-    }
-});
-
-// NIEUWE ROUTE: Product Verwijderen
-router.post("/admin/products/delete/:id", async (req: Request, res: Response) => {
-    try {
-        const productId = parseInt(req.params.id);
-        const productToDelete = await getProductById(productId); // Haal product op om afbeelding URL te krijgen
-
-        if (!productToDelete) {
-            return res.status(404).send('Product niet gevonden om te verwijderen.');
-        }
-
-        // Optioneel: Verwijder de afbeelding uit Supabase Storage
-        if (productToDelete.imageUrl) {
-            await deleteImage(productToDelete.imageUrl);
-        }
-
-        await deleteProduct(productId); // Verwijder product uit DB
 
         res.redirect('/admin/products');
+        return; // Expliciet return na res.redirect
     } catch (error) {
-        console.error('Error handling /admin/products/delete POST route:', error);
-        res.status(500).send('Er is een fout opgetreden bij het verwijderen van het product: ' + (error instanceof Error ? error.message : error));
+        console.error('Error handling /admin/products/edit POST route:', error);
+        next(error);
     }
 });
 
+// Product Verwijderen
+router.post("/admin/products/delete/:id", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const productId = parseInt(req.params.id);
+        const productToDelete = await getProductById(productId);
+
+        if (!productToDelete) {
+            res.status(404).send('Product niet gevonden om te verwijderen.');
+            return; // Expliciet return na res.send
+        }
+
+        if (productToDelete.imageUrl && SUPABASE_BUCKET_NAME) { // Voeg null check toe
+            await deleteImageFromStorage(productToDelete.imageUrl, SUPABASE_BUCKET_NAME); // <--- FIX: Voeg bucketName toe
+        }
+
+        await deleteProduct(productId);
+
+        res.redirect('/admin/products');
+        return; // Expliciet return na res.redirect
+    } catch (error) {
+        console.error('Error handling /admin/products/delete POST route:', error);
+        next(error);
+    }
+});
 
 export default router;
