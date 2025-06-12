@@ -1,6 +1,17 @@
+<%
+function jsonStringifySafe(obj) {
+    try {
+        return JSON.stringify(obj, null, 2);
+    } catch (e) {
+        return '';
+    }
+}
+%>
+
 <div class="admin-panel form-panel">
     <h1><%= title %></h1>
     <p><%= message %></p>
+    <a href="/" class="<%= (typeof title !== 'undefined' && title === 'Frietkot Beheersysteem') ? 'active' : '' %>">Home</a>
 
     <form action="<%= product ? '/admin/products/edit/' + product.id : '/admin/products/add' %>" method="POST" enctype="multipart/form-data">
         <div class="form-group">
@@ -34,20 +45,23 @@
 
         <div class="form-group">
             <label for="image">Afbeelding:</label>
-            <input type="file" id="image" name="image" accept="image/*">
+            <input type="file" id="image" name="image" accept="image/jpeg, image/png, image/gif, image/webp">
             <% if (product && product.imageUrl) { %>
-                <p>Huidige afbeelding:</p>
+                <p class="current-image-label">Huidige afbeelding:</p>
                 <img src="<%= product.imageUrl %>" alt="<%= product.name %>" class="current-image-thumb">
                 <input type="hidden" name="currentImageUrl" value="<%= product.imageUrl %>">
+                <div class="remove-image-checkbox">
+                    <input type="checkbox" id="removeImage" name="removeImage" value="true">
+                    <label for="removeImage">Afbeelding verwijderen</label>
+                </div>
             <% } %>
         </div>
 
         <div class="form-group">
             <label for="options">Opties (JSON, optioneel):</label>
-            <textarea id="options" name="options" rows="6" placeholder='[{"name": "Grootte", "choices": [{"label": "Normaal", "price_change": 0}, {"label": "Groot", "price_change": 1.00}]}]'><%= product && product.options ? JSON.stringify(product.options, null, 2) : '' %></textarea>
+            <textarea id="options" name="options" rows="6" placeholder='[{"name": "Grootte", "choices": [{"label": "Normaal", "price_change": 0}, {"label": "Groot", "price_change": 1.00}]}]'><%= product && product.options ? jsonStringifySafe(product.options) : '' %></textarea>
             <small>Voer opties in als een JSON-array (zie placeholder voor voorbeeld).</small>
         </div>
-
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary"><%= product ? 'Product Opslaan' : 'Product Toevoegen' %></button>
@@ -57,42 +71,57 @@
 </div>
 
 <style>
-    /* Voeg deze CSS toe aan je server/public/css/styles.css */
-    .form-panel {
+    .admin-panel {
         background-color: rgba(0, 0, 0, 0.4);
         padding: 30px 40px;
         margin-top: 30px;
+        border-radius: 8px; /* Voeg wat afronding toe */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Zachte schaduw */
+    }
+    .admin-panel h1 {
+        color: #FFD700; /* Goudkleur */
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 2.2em;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    .admin-panel p {
+        color: #fff;
+        text-align: center;
+        margin-bottom: 30px;
+        font-size: 1.1em;
     }
     .form-group {
         margin-bottom: 20px;
-        text-align: left; /* Zorgt dat labels en inputs links uitlijnen */
+        text-align: left;
     }
     .form-group label {
         display: block;
         margin-bottom: 8px;
         font-weight: bold;
-        color: #FFD700; /* Goudkleur voor labels */
+        color: #FFD700;
         font-size: 1.1em;
     }
     .form-group input[type="text"],
     .form-group input[type="number"],
     .form-group textarea,
     .form-group select {
-        width: calc(100% - 20px); /* Neem bijna de volle breedte, rekening houdend met padding */
+        width: calc(100% - 20px);
         padding: 12px 10px;
         border: 1px solid rgba(255, 255, 255, 0.3);
         border-radius: 5px;
         background-color: rgba(255, 255, 255, 0.1);
         color: #fff;
         font-size: 1em;
-        box-sizing: border-box; /* Belangrijk voor padding/border */
+        box-sizing: border-box;
     }
     .form-group textarea {
-        resize: vertical; /* Sta verticale resizing toe */
+        resize: vertical;
         min-height: 80px;
     }
     .form-group input[type="file"] {
         padding: 10px 0;
+        color: #fff; /* Maakt de tekst 'Geen bestand gekozen' wit */
     }
     .form-group input[type="file"]::file-selector-button {
         background-color: #007bff;
@@ -112,18 +141,63 @@
         color: rgba(255, 255, 255, 0.7);
         font-size: 0.9em;
     }
+    .current-image-label {
+        color: #FFD700;
+        font-weight: bold;
+        margin-top: 15px;
+        margin-bottom: 5px;
+    }
     .current-image-thumb {
         max-width: 150px;
         height: auto;
         border-radius: 5px;
         margin-top: 10px;
         border: 1px solid rgba(255, 255, 255, 0.5);
+        display: block; /* Zorgt dat de checkbox eronder netjes uitlijnt */
+    }
+    .remove-image-checkbox {
+        margin-top: 10px;
+        color: #fff;
+        display: flex; /* Zorgt dat label en checkbox op één lijn staan */
+        align-items: center;
+    }
+    .remove-image-checkbox input[type="checkbox"] {
+        margin-right: 8px; /* Ruimte tussen checkbox en label */
+        width: 20px; /* Grotere checkbox */
+        height: 20px;
+    }
+    .remove-image-checkbox label {
+        margin-bottom: 0; /* Override default label margin */
+        font-size: 1em;
+        font-weight: normal; /* Override default label weight */
+        color: #fff;
     }
     .form-actions {
-        text-align: right; /* Knoppen rechts uitlijnen */
+        text-align: right;
         margin-top: 30px;
     }
     .form-actions .btn {
         margin-left: 15px;
+        padding: 10px 20px;
+        font-size: 1.1em;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .btn-primary {
+        background-color: #28a745; /* Groen */
+        color: #fff;
+        border: none;
+    }
+    .btn-primary:hover {
+        background-color: #218838;
+    }
+    .btn-secondary {
+        background-color: #dc3545; /* Rood */
+        color: #fff;
+        border: none;
+    }
+    .btn-secondary:hover {
+        background-color: #c82333;
     }
 </style>

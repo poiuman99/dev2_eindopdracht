@@ -3,9 +3,13 @@
 import express, { Request, Response, Router, NextFunction } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs/promises";
+import sharp from "sharp";
+import rimraf from "rimraf";
+
 const router: Router = express.Router();
 
-// Importeer functies uit menuService (controleer of deze namen kloppen met wat menuService exporteert)
+// Importeer functies uit menuService
 import {
     getProductsByCategoryName,
     getAllCategories,
@@ -14,59 +18,113 @@ import {
     addProduct,
     updateProduct,
     deleteProduct
-} from "./services/menuService"; // Let op: './services/menuService' als menuService in server/services/ staat
+} from "./services/menuService";
 
-// Importeer MenuItem interface
-import { MenuItem } from "./services/interfaces"; // Zorg dat dit pad en de interface kloppen
+// Importeer NIEUWE functies uit orderService
+import {
+    getDailyOrderCounts,
+    getMonthlyOrderStats,
+    getYearlyRevenueStats
+} from "./services/orderService"; // Let op: deze services zullen nu 0 winst rapporteren!
 
-// Zorg ervoor dat SUPABASE_BUCKET_NAME beschikbaar is in .env en geladen is
-const SUPABASE_BUCKET_NAME = process.env.SUPABASE_BUCKET_NAME;
-if (!SUPABASE_BUCKET_NAME) {
-    console.error("SUPABASE_BUCKET_NAME is niet geconfigureerd in .env. Afbeeldingen zullen niet werken.");
-}
+// Importeer MenuItem interface (alleen nodig als je deze elders direct gebruikt in routes.ts)
+import { MenuItem } from "./services/interfaces"; // Zorg dat deze is bijgewerkt
 
 // --- Multer Configuratie voor Afbeelding Uploads ---
-const storage = multer.memoryStorage(); // Opslaan in het geheugen als Buffer
+// ... (Multer configuratie blijft hetzelfde) ...
+const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 }, // Max 5MB
-    fileFilter: (req, file, cb) => { // Verwijder de expliciete type-annotatie 'multer.FileFilterCallback' hier
-        const filetypes = /jpeg|jpg|png|gif|webp/;
-        const mimetype = filetypes.test(file.mimetype);
-        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = /image\/(jpeg|jpg|png|gif|webp)/;
+        const allowedExtNames = /\.(jpeg|jpg|png|gif|webp)$/;
 
-        if (mimetype && extname) {
+        const mimetypeIsValid = allowedMimeTypes.test(file.mimetype);
+        const extnameIsValid = allowedExtNames.test(path.extname(file.originalname).toLowerCase());
+
+        if (mimetypeIsValid && extnameIsValid) {
             return cb(null, true);
         }
-        // DE FIX IS HIER: Maak een nieuwe Error instantie
         cb(new Error("Error: Alleen afbeeldingen (jpeg, jpg, png, gif, webp) zijn toegestaan!"));
     }
 });
 // --- Einde Multer Configuratie ---
 
+// --- Lokale Afbeelding Opslag Configuratie en Functies ---
+// ... (deze functies blijven hetzelfde) ...
+const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'images');
+
+async function ensureUploadsDir() {
+    try {
+        await fs.mkdir(UPLOADS_DIR, { recursive: true });
+        console.log(`Uploads directory ${UPLOADS_DIR} ensured.`);
+    } catch (error) {
+        console.error('Error ensuring uploads directory:', error);
+    }
+}
+ensureUploadsDir();
+
+async function deleteLocalImage(imageUrl: string | null): Promise<boolean> {
+    if (!imageUrl) return false;
+    const filename = path.basename(imageUrl);
+    const imagePath = path.join(UPLOADS_DIR, filename);
+    try {
+        await fs.unlink(imagePath);
+        console.log(`Afbeelding lokaal verwijderd: ${imagePath}`);
+        return true;
+    } catch (error: any) {
+        if (error.code === 'ENOENT') {
+            console.warn(`Afbeelding niet gevonden om te verwijderen (was mogelijk al weg): ${imagePath}`);
+            return false;
+        }
+        console.error(`Fout bij verwijderen lokale afbeelding ${imagePath}:`, error);
+        return false;
+    }
+}
+// --- Einde Lokale Afbeelding Opslag Configuratie en Functies ---
+
 
 // =========================================================================
 // ALGEMEEN TOEGANKELIJKE ROUTES (Frontend)
 // =========================================================================
+// ... (je bestaande frontend routes blijven hetzelfde) ...
+router.get("/admin/stats", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Haal de statistieken op
+        const dailyStats = await getDailyOrderCounts();
+        const monthlyStats = await getMonthlyOrderStats();
+        const yearlyStats = await getYearlyRevenueStats();
 
-// ROOT Route: Handles GET requests to '/'
+        res.render("admin/stats", { // <-- Render nu stats.ejs
+            title: "Overzicht Statistieken",
+            message: "Bekijk hier de belangrijke bedrijfsstatistieken.",
+            dailyStats: dailyStats,       // Geef dailyStats mee
+            monthlyStats: monthlyStats,   // Geef monthlyStats mee
+            yearlyStats: yearlyStats      // Geef yearlyStats mee
+        });
+        return;
+    } catch (error) {
+        console.error('Error rendering admin stats page:', error);
+        next(error); // Geef de fout door
+    }
+});
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const categories = await getAllCategories(); // Haal categorieën op voor de navigatiebalk/filters
-        const products = await getAllProductsWithCategoryName(); // Haal alle producten op voor de hoofdpagina
+        const categories = await getAllCategories();
+        const products = await getAllProductsWithCategoryName();
         res.render("index", {
             title: "Welkom bij Frietkot",
-            categories: categories, // Geef categorieën mee aan de template
-            products: products // Geef producten mee aan de template
+            categories: categories,
+            products: products
         });
-        return; // Expliciet return na res.render
+        return;
     } catch (error) {
         console.error('Error handling / route:', error);
-        next(error); // Geef de fout door aan de Express foutafhandeling
+        next(error);
     }
 });
 
-// Menu pagina: Alle producten per categorie
 router.get("/menu", async (req: Request, res: Response, next: NextFunction) => {
     try {
         const categories = await getAllCategories();
@@ -76,8 +134,8 @@ router.get("/menu", async (req: Request, res: Response, next: NextFunction) => {
             title: "Ons Menu",
             categories: categories,
             products: products,
-            selectedCategory: null, // Of iets specifieks
-            introText: "Ontdek al onze heerlijke producten hieronder!" // <-- VOEG DEZE REGEL TOE
+            selectedCategory: null,
+            introText: "Ontdek al onze heerlijke producten hieronder!"
         });
         return;
     } catch (error) {
@@ -86,7 +144,6 @@ router.get("/menu", async (req: Request, res: Response, next: NextFunction) => {
     }
 });
 
-// Menu pagina: Producten per specifieke categorie
 router.get("/categorie/:categoryName", async (req: Request, res: Response, next: NextFunction) => {
     try {
         const categoryName = req.params.categoryName;
@@ -98,7 +155,7 @@ router.get("/categorie/:categoryName", async (req: Request, res: Response, next:
             categories: categories,
             products: products,
             selectedCategory: categoryName,
-            introText: `Bekijk hier alle producten in de categorie "${categoryName}".` // <-- VOEG DEZE REGEL TOE
+            introText: `Bekijk hier alle producten in de categorie "${categoryName}".`
         });
         return;
     } catch (error) {
@@ -112,15 +169,29 @@ router.get("/categorie/:categoryName", async (req: Request, res: Response, next:
 // ADMIN ROUTES
 // =========================================================================
 
-// NIEUWE ROUTE: Admin Dashboard / Hoofdpagina Admin
-router.get("/admin", (req: Request, res: Response) => {
-    // Redirect naar de productenlijst, wat waarschijnlijk je hoofd admin overzicht is
-    res.redirect("/admin/products");
-    return; // Belangrijk voor TypeScript en Express om de response te beëindigen
+// Admin Dashboard / Hoofdpagina Admin
+router.get("/admin", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Haal de statistieken op
+        const dailyStats = await getDailyOrderCounts();
+        const monthlyStats = await getMonthlyOrderStats();
+        const yearlyStats = await getYearlyRevenueStats();
+
+        res.render("admin/dashboard", {
+            title: "Admin Dashboard",
+            message: "Welkom op het administratiepaneel!",
+            dailyStats: dailyStats,
+            monthlyStats: monthlyStats,
+            yearlyStats: yearlyStats
+        });
+        return;
+    } catch (error) {
+        console.error('Error rendering admin dashboard:', error);
+        next(error); // Geef de fout door
+    }
 });
 
-
-// Admin Producten Lijst (Bestaande route, direct hieronder)
+// Admin Producten Lijst
 router.get("/admin/products", async (req: Request, res: Response, next: NextFunction) => {
     try {
         const products = await getAllProductsWithCategoryName();
@@ -136,21 +207,6 @@ router.get("/admin/products", async (req: Request, res: Response, next: NextFunc
     }
 });
 
-// Admin Producten Lijst
-router.get("/admin/products", async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const products = await getAllProductsWithCategoryName();
-        res.render("admin/products", {
-            title: "Producten Beheren",
-            message: "Overzicht van alle producten in het systeem.",
-            products: products
-        });
-        return; // Expliciet return na res.render
-    } catch (error) {
-        console.error('Error handling /admin/products route:', error);
-        next(error);
-    }
-});
 
 // Toon Product Toevoegen Formulier
 router.get("/admin/products/add", async (req: Request, res: Response, next: NextFunction) => {
@@ -162,7 +218,7 @@ router.get("/admin/products/add", async (req: Request, res: Response, next: Next
             product: null,
             categories: categories
         });
-        return; // Expliciet return na res.render
+        return;
     } catch (error) {
         console.error('Error handling /admin/products/add GET route:', error);
         next(error);
@@ -172,11 +228,33 @@ router.get("/admin/products/add", async (req: Request, res: Response, next: Next
 // Verwerk Product Toevoegen Formulier
 router.post("/admin/products/add", upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
     try {
+        // Verwijder cost_price uit de destructurering
         const { name, price, description, categoryId, options } = req.body;
         const file = req.file;
         let imageUrl: string | null = null;
 
-      
+        // --- Afbeeldingsverwerking ---
+        if (file) {
+            const filename = `image_${Date.now()}${path.extname(file.originalname).toLowerCase()}`;
+            const outputPath = path.join(UPLOADS_DIR, filename);
+
+            try {
+                await sharp(file.buffer)
+                    .resize(300, 300, {
+                        fit: sharp.fit.inside,
+                        withoutEnlargement: true
+                    })
+                    .toFormat("jpeg", { quality: 80 })
+                    .toFile(outputPath);
+                imageUrl = `/images/${filename}`;
+                console.log(`Afbeelding succesvol lokaal opgeslagen als ${outputPath}`);
+            } catch (sharpError) {
+                console.error("Fout bij verwerken of opslaan afbeelding met sharp:", sharpError);
+                next(sharpError);
+                return;
+            }
+        }
+        // --- Einde Afbeeldingsverwerking ---
 
         let parsedOptions = null;
         if (options && options.trim() !== '') {
@@ -185,10 +263,11 @@ router.post("/admin/products/add", upload.single('image'), async (req: Request, 
             } catch (e) {
                 console.warn('Invalid JSON for options:', options);
                 res.status(400).send('Ongeldige JSON voor opties.');
-                return; // Expliciet return na res.send
+                return;
             }
         }
 
+        // Verwijder cost_price uit de aanroep van addProduct
         const newProduct = await addProduct(
             name,
             parseFloat(price),
@@ -199,7 +278,7 @@ router.post("/admin/products/add", upload.single('image'), async (req: Request, 
         );
 
         res.redirect('/admin/products');
-        return; // Expliciet return na res.redirect
+        return;
     } catch (error) {
         console.error('Error handling /admin/products/add POST route:', error);
         next(error);
@@ -215,7 +294,7 @@ router.get("/admin/products/edit/:id", async (req: Request, res: Response, next:
 
         if (!product) {
             res.status(404).send('Product niet gevonden.');
-            return; // Expliciet return na res.send
+            return;
         }
 
         res.render("admin/product_form", {
@@ -224,22 +303,54 @@ router.get("/admin/products/edit/:id", async (req: Request, res: Response, next:
             product: product,
             categories: categories
         });
-        return; // Expliciet return na res.render
+        return;
     } catch (error) {
         console.error('Error handling /admin/products/edit GET route:', error);
         next(error);
     }
 });
 
+
 // Verwerk Product Bewerken Formulier
 router.post("/admin/products/edit/:id", upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const productId = parseInt(req.params.id);
-        const { name, price, description, categoryId, options, currentImageUrl } = req.body;
+        // Verwijder cost_price uit de destructurering
+        const { name, price, description, categoryId, options, currentImageUrl, removeImage } = req.body;
         const file = req.file;
         let imageUrl: string | null = currentImageUrl || null;
 
-      
+        // --- Afbeeldingsverwerking en Oude Verwijderen ---
+        if (file) {
+            if (currentImageUrl) {
+                await deleteLocalImage(currentImageUrl);
+            }
+
+            const filename = `image_${Date.now()}${path.extname(file.originalname).toLowerCase()}`;
+            const outputPath = path.join(UPLOADS_DIR, filename);
+
+            try {
+                await sharp(file.buffer)
+                    .resize(300, 300, {
+                        fit: sharp.fit.inside,
+                        withoutEnlargement: true
+                    })
+                    .toFormat("jpeg", { quality: 80 })
+                    .toFile(outputPath);
+                imageUrl = `/images/${filename}`;
+                console.log(`Nieuwe afbeelding succesvol lokaal opgeslagen als ${outputPath}`);
+            } catch (sharpError) {
+                console.error("Fout bij verwerken of opslaan nieuwe afbeelding met sharp:", sharpError);
+                next(sharpError);
+                return;
+            }
+        } else if (removeImage === 'true' && currentImageUrl) {
+            await deleteLocalImage(currentImageUrl);
+            imageUrl = null;
+            console.log(`Bestaande afbeelding verwijderd voor product ${productId}.`);
+        }
+        // --- Einde Afbeeldingsverwerking en Oude Verwijderen ---
+
         let parsedOptions = null;
         if (options && options.trim() !== '') {
             try {
@@ -247,10 +358,11 @@ router.post("/admin/products/edit/:id", upload.single('image'), async (req: Requ
             } catch (e) {
                 console.warn('Invalid JSON for options on update:', options);
                 res.status(400).send('Ongeldige JSON voor opties.');
-                return; // Expliciet return na res.send
+                return;
             }
         }
 
+        // Verwijder cost_price uit de aanroep van updateProduct
         const updatedProduct = await updateProduct(
             productId,
             name,
@@ -263,11 +375,11 @@ router.post("/admin/products/edit/:id", upload.single('image'), async (req: Requ
 
         if (!updatedProduct) {
             res.status(404).send('Product niet gevonden voor update.');
-            return; // Expliciet return na res.send
+            return;
         }
 
         res.redirect('/admin/products');
-        return; // Expliciet return na res.redirect
+        return;
     } catch (error) {
         console.error('Error handling /admin/products/edit POST route:', error);
         next(error);
@@ -280,17 +392,15 @@ router.post("/admin/products/delete/:id", async (req: Request, res: Response, ne
         const productId = parseInt(req.params.id);
         const productToDelete = await getProductById(productId);
 
-        if (!productToDelete) {
-            res.status(404).send('Product niet gevonden om te verwijderen.');
-            return; // Expliciet return na res.send
+        if (productToDelete && productToDelete.imageUrl) {
+            await deleteLocalImage(productToDelete.imageUrl);
         }
 
         await deleteProduct(productId);
-
         res.redirect('/admin/products');
-        return; // Expliciet return na res.redirect
+        return;
     } catch (error) {
-        console.error('Error handling /admin/products/delete POST route:', error);
+        console.error('Error deleting product:', error);
         next(error);
     }
 });

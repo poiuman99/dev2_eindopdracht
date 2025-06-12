@@ -1,6 +1,8 @@
 <div class="admin-dashboard">
     <h1><%= title %></h1>
     <p><%= message %></p>
+    <a href="/" class="<%= (typeof title !== 'undefined' && title === 'Frietkot Beheersysteem') ? 'active' : '' %>">Home</a>
+ 
 
     <div class="dashboard-links">
         <a href="/admin/products" class="dashboard-btn">Producten Beheren</a>

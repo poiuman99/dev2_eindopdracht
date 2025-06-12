@@ -1,25 +1,11 @@
 // server/services/menuService.ts
 
-import sql from "./db"; // Controleer dit pad!
-
-// Zorg ervoor dat je MenuItem interface de 'options' en 'categoryId' properties heeft
-// Voorbeeld:
-// export interface MenuItem {
-//     id: number;
-//     name: string;
-//     price: number;
-//     description?: string | null;
-//     imageUrl?: string | null;
-//     options?: any; // Kan een array van objecten zijn
-//     categoryName?: string; // Optioneel, voor weergave
-//     categoryId?: number; // Optioneel, voor formulieren
-// }
-import { MenuItem } from "./interfaces";
+import sql from "./db";
+import { MenuItem, Category } from "./interfaces";
 
 // FUNCTIE 1: Haal producten op per categorienaam (case-insensitive)
 export async function getProductsByCategoryName(categoryName: string): Promise<MenuItem[]> {
     try {
-        // Gebruik LOWER() om case-insensitive te vergelijken
         const products = await sql`
             SELECT
                 p.id,
@@ -28,7 +14,9 @@ export async function getProductsByCategoryName(categoryName: string): Promise<M
                 p.description,
                 p.image_url,
                 p.options,
-                c.name AS category_name -- Haal de categorienaam op
+                c.name AS category_name,
+                p.category_id
+                -- p.cost_price -- <-- VERWIJDER DEZE REGEL
             FROM
                 products p
             JOIN
@@ -46,7 +34,9 @@ export async function getProductsByCategoryName(categoryName: string): Promise<M
             description: item.description || null,
             imageUrl: item.image_url || null,
             options: item.options || [],
-            categoryName: item.category_name
+            categoryName: item.category_name,
+            categoryId: item.category_id
+            // cost_price: parseFloat(item.cost_price) // <-- VERWIJDER DEZE REGEL
         }));
     } catch (error: any) {
         console.error(`Error fetching products for category '${categoryName}':`, error);
@@ -55,7 +45,7 @@ export async function getProductsByCategoryName(categoryName: string): Promise<M
 }
 
 // FUNCTIE 2: Haal alle categorieën op
-export async function getAllCategories(): Promise<{ id: number, name: string }[]> {
+export async function getAllCategories(): Promise<Category[]> {
     try {
         const categories = await sql`SELECT id, name FROM categories ORDER BY name;`;
         return categories.map(cat => ({ id: cat.id, name: cat.name }));
@@ -77,7 +67,8 @@ export async function getAllProductsWithCategoryName(): Promise<MenuItem[]> {
                 p.image_url,
                 p.options,
                 c.name AS category_name,
-                p.category_id -- Ook de category_id voor het bewerkformulier
+                p.category_id
+                -- p.cost_price -- <-- VERWIJDER DEZE REGEL
             FROM
                 products p
             JOIN
@@ -94,7 +85,8 @@ export async function getAllProductsWithCategoryName(): Promise<MenuItem[]> {
             imageUrl: item.image_url || null,
             options: item.options || [],
             categoryName: item.category_name,
-            categoryId: item.category_id // Voeg de categoryId toe
+            categoryId: item.category_id
+            // cost_price: parseFloat(item.cost_price) // <-- VERWIJDER DEZE REGEL
         }));
     } catch (error: any) {
         console.error('Error fetching all products with category name:', error);
@@ -113,7 +105,8 @@ export async function getProductById(id: number): Promise<MenuItem | null> {
                 description,
                 image_url,
                 options,
-                category_id -- Belangrijk: haal category_id op voor de dropdown in het formulier
+                category_id
+                -- cost_price -- <-- VERWIJDER DEZE REGEL
             FROM
                 products
             WHERE
@@ -131,7 +124,8 @@ export async function getProductById(id: number): Promise<MenuItem | null> {
             description: product.description || null,
             imageUrl: product.image_url || null,
             options: product.options || [],
-            categoryId: product.category_id // Voeg categoryId toe aan het MenuItem object
+            categoryId: product.category_id
+            // cost_price: parseFloat(product.cost_price) // <-- VERWIJDER DEZE REGEL
         };
     } catch (error: any) {
         console.error(`Error fetching product by ID ${id}:`, error);
@@ -147,12 +141,14 @@ export async function addProduct(
     categoryId: number,
     imageUrl: string | null,
     options: any | null // JSONB type
+    // cost_price: number // <-- VERWIJDER DEZE PARAMETER
 ): Promise<MenuItem> {
     try {
         const [newProduct] = await sql`
             INSERT INTO products (name, price, description, category_id, image_url, options)
             VALUES (${name}, ${price}, ${description}, ${categoryId}, ${imageUrl}, ${sql.json(options)})
             RETURNING id, name, price, description, image_url, options, category_id;
+            -- RETURNING id, name, price, description, image_url, options, category_id, cost_price; -- <-- VERWIJDER cost_price HIER
         `;
 
         return {
@@ -163,6 +159,7 @@ export async function addProduct(
             imageUrl: newProduct.image_url || null,
             options: newProduct.options || [],
             categoryId: newProduct.category_id
+            // cost_price: parseFloat(newProduct.cost_price) // <-- VERWIJDER DEZE REGEL
         };
     } catch (error: any) {
         console.error('Error adding product:', error);
@@ -179,6 +176,7 @@ export async function updateProduct(
     categoryId: number,
     imageUrl: string | null,
     options: any | null // JSONB type
+    // cost_price: number // <-- VERWIJDER DEZE PARAMETER
 ): Promise<MenuItem | null> {
     try {
         const [updatedProduct] = await sql`
@@ -193,6 +191,7 @@ export async function updateProduct(
             WHERE
                 id = ${id}
             RETURNING id, name, price, description, image_url, options, category_id;
+            -- RETURNING id, name, price, description, image_url, options, category_id, cost_price; -- <-- VERWIJDER cost_price HIER
         `;
 
         if (!updatedProduct) {
@@ -207,6 +206,7 @@ export async function updateProduct(
             imageUrl: updatedProduct.image_url || null,
             options: updatedProduct.options || [],
             categoryId: updatedProduct.category_id
+            // cost_price: parseFloat(updatedProduct.cost_price) // <-- VERWIJDER DEZE REGEL
         };
     } catch (error: any) {
         console.error(`Error updating product ${id}:`, error);

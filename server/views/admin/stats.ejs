@@ -1,0 +1,117 @@
+<div class="admin-panel dashboard-panel">
+    <h1><%= title %></h1>
+    <p><%= message %></p>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h2>Bestellingen Vandaag</h2>
+            <p class="stat-value"><%= dailyStats.total %></p>
+            <p class="stat-detail">Afgewerkt: <%= dailyStats.completed %></p>
+            <p class="stat-detail">Nog in behandeling: <%= dailyStats.pending %></p>
+        </div>
+
+        <div class="stat-card">
+            <h2>Omzet per Jaar</h2>
+            <% if (yearlyStats && yearlyStats.length > 0) { %>
+                <% yearlyStats.forEach(year => { %>
+                    <p class="stat-detail">
+                        <strong><%= year.year %>:</strong>
+                        €<%= year.totalRevenue.toFixed(2) %> Omzet
+                        (Winst: €<%= year.totalProfit.toFixed(2) %>)
+                    </p>
+                <% }); %>
+            <% } else { %>
+                <p class="stat-detail">Nog geen jaarlijkse omzetgegevens.</p>
+            <% } %>
+        </div>
+
+        <div class="stat-card">
+            <h2>Bestellingen per Maand</h2>
+            <% if (monthlyStats && monthlyStats.length > 0) { %>
+                <% monthlyStats.forEach(month => { %>
+                    <p class="stat-detail">
+                        <strong><%= month.month %>:</strong>
+                        <%= month.totalOrders %> bestellingen,
+                        €<%= month.totalRevenue.toFixed(2) %> Omzet
+                        (Winst: €<%= month.totalProfit.toFixed(2) %>)
+                    </p>
+                <% }); %>
+            <% } else { %>
+                <p class="stat-detail">Nog geen maandelijkse bestelgegevens.</p>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="admin-actions">
+        <a href="/admin/products" class="btn btn-action">Producten Beheren</a>
+        </div>
+</div>
+
+<style>
+    /* Voeg deze CSS toe aan je server/public/css/style.css */
+    .dashboard-panel {
+        background-color: rgba(0, 0, 0, 0.4);
+        padding: 30px 40px;
+        margin-top: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        color: #fff;
+    }
+    .dashboard-panel h1 {
+        color: #FFD700;
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 2.2em;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    .dashboard-panel p {
+        text-align: center;
+        font-size: 1.1em;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 40px;
+        margin-bottom: 40px;
+    }
+    .stat-card {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 25px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .stat-card h2 {
+        color: #FFD700;
+        font-size: 1.6em;
+        margin-bottom: 15px;
+    }
+    .stat-value {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #00FF00; /* Felgroen voor belangrijke waarden */
+        margin-bottom: 10px;
+    }
+    .stat-detail {
+        font-size: 1.0em;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 5px;
+    }
+    .admin-actions {
+        text-align: center;
+        margin-top: 30px;
+    }
+    .btn-action {
+        background-color: #007bff;
+        color: #fff;
+        padding: 12px 25px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+    .btn-action:hover {
+        background-color: #0056b3;
+    }
+</style>

@@ -19,6 +19,7 @@
     "express-ejs-layouts": "^2.5.1",
     "multer": "^2.0.1",
     "postgres": "^3.4.7",
+    "rimraf": "^6.0.1",
     "sharp": "^0.34.2"
   },
   "devDependencies": {

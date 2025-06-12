@@ -1,47 +1,53 @@
 // server/app.ts
 
-import express, { Application } from "express";
-import path from "path";
-import expressLayouts from "express-ejs-layouts";
-import routes from "./routes";
 import dotenv from 'dotenv';
+dotenv.config();
 
-dotenv.config(); // Laad omgevingsvariabelen zo vroeg mogelijk
+import express from 'express';
+import expressLayouts from 'express-ejs-layouts'; // <-- ZORG DAT DEZE IMPORT ER WEER IS
+import path from 'path';
+import routes from './routes';
 
-// Definieer de poort, gebruik process.env.PORT als die bestaat, anders 3000
-// Gebruik de nullish coalescing operator (??) voor een schonere fallback
-// Dit is de ENIGE declaratie van PORT
-const PORT: number = parseInt(process.env.PORT ?? '3000', 10);
+const app = express();
+const port = process.env.PORT || 3000;
 
-
-const app: Application = express();
-
-// EJS als template-engine instellen
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
-
-// Middleware voor layouts
-app.use(expressLayouts);
-app.set("layout", "layouts/main");
-
-// Middleware om statische bestanden te serveren
-// Zorg dat het pad naar je 'public' map klopt vanuit de context van het gecompileerde JS-bestand
-// Als je server/app.ts compileert naar dist/app.js, dan moet public relatief zijn aan dist
-app.use(express.static(path.join(__dirname, "../public"))); // Vaak is '../public' correct voor TS-projecten die naar dist/server compileren
-
-
-// Middleware om formulierdata te verwerken (JSON en URL-encoded)
-app.use(express.json()); // Voeg deze toe als je ook JSON body's verwacht (bijv. van API-calls)
+// Middleware voor het parsen van body's
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Configuratie voor EJS en layouts
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
+// --- DE BELANGRIJKE AANPASSINGEN HIER ---
+// 1. Zorg ervoor dat expressLayouts wordt gebruikt
+app.use(expressLayouts);
+
+// 2. Vertel express-ejs-layouts waar je layouts map is en welke layout-file te gebruiken
+// Als je main.ejs DIRECT in server/views/layouts/ staat
+app.set('layout', 'layouts/main'); // <-- Deze regel is cruciaal!
+// Of als 'layouts' de standaard map is in je views, en main.ejs erin staat:
+// app.set('layout', 'main'); // als je app.set('layout extractScripts', true) en app.set('layout extractStyles', true) gebruikt, kunnen layouts in een subfolder.
+// Het is vaak het makkelijkst om de volledige pad relatief aan de views map te geven.
+// Dus als main.ejs in server/views/layouts/main.ejs staat, dan is het 'layouts/main'.
+// --- EINDE AANPASSINGEN ---
 
 
-// Routes gebruiken
-app.use("/", routes);
+// Statische bestanden serveren vanuit de 'public' map
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Server starten
-app.listen(PORT, (): void => {
-  console.log(`Server draait op http://localhost:${PORT}`);
+// Gebruik je routes
+app.use('/', routes);
+
+// Foutafhandeling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(err.stack);
+    res.status(500).send('Er is iets misgegaan!');
 });
 
-// Optioneel: exporteer de app als je die in testbestanden wilt gebruiken
-// export default app;
+// Start de server
+app.listen(port, () => {
+    console.log(`Server draait op http://localhost:${port}`);
+});
+
+export default app;
