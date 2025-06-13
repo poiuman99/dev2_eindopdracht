@@ -9,7 +9,6 @@ import rimraf from "rimraf";
 
 const router: Router = express.Router();
 
-// Importeer functies uit menuService
 import {
     getProductsByCategoryName,
     getAllCategories,
@@ -20,12 +19,13 @@ import {
     deleteProduct
 } from "./services/menuService";
 
-// Importeer NIEUWE functies uit orderService
+// Importeer functies uit orderService
 import {
     getDailyOrderCounts,
     getMonthlyOrderStats,
-    getYearlyRevenueStats
-} from "./services/orderService"; // Let op: deze services zullen nu 0 winst rapporteren!
+    getYearlyRevenueStats,
+    addOrder // <-- VOEG addOrder HIER TOE
+} from "./services/orderService";
 
 // Importeer MenuItem interface (alleen nodig als je deze elders direct gebruikt in routes.ts)
 import { MenuItem } from "./services/interfaces"; // Zorg dat deze is bijgewerkt
@@ -168,6 +168,87 @@ router.get("/categorie/:categoryName", async (req: Request, res: Response, next:
 // =========================================================================
 // ADMIN ROUTES
 // =========================================================================
+
+// NIEUWE ROUTE: Toon Test Bestelling Toevoegen Formulier
+router.get("/admin/test-order/add", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Haal alle producten op om de dropdown te vullen
+        const products = await getAllProductsWithCategoryName();
+
+        res.render("admin/add_order_test_form", {
+            title: "Test Bestelling Plaatsen",
+            message: "Gebruik dit formulier om snel een testbestelling toe te voegen.",
+            products: products // <-- Geef de producten mee aan de EJS-template
+        });
+        return;
+    } catch (error) {
+        console.error('Error rendering test order form:', error);
+        next(error);
+    }
+});
+
+router.post("/admin/test-order/add", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { customerName, totalPrice, status, notes, selectedProductId, productName1, quantity1, unitPrice1 } = req.body;
+
+        // --- Validatie en Sanering van de hoofd bestelgegevens ---
+        const parsedTotalPrice = parseFloat(totalPrice);
+        if (isNaN(parsedTotalPrice)) {
+            return res.status(400).send('Ongeldige totale prijs opgegeven.');
+        }
+        if (!status) {
+            return res.status(400).send('Status is verplicht.');
+        }
+
+        const newOrderData = {
+            total_price: parsedTotalPrice,
+            status: status,
+            customer_name: customerName || null, // Converteert lege string of undefined naar null
+            notes: notes || null                // Converteert lege string of undefined naar null
+        };
+
+        // --- Validatie en Sanering van de bestelitem gegevens ---
+        const parsedSelectedProductId = parseInt(selectedProductId);
+        // product_id is nullable in de DB, dus NaN wordt null
+        const itemProductId = isNaN(parsedSelectedProductId) ? null : parsedSelectedProductId;
+
+        // product_name is NOT NULL in de DB, dus zorg voor een standaardwaarde als leeg
+        const itemProductName = productName1 ? String(productName1).trim() : 'Onbekend Product';
+        if (itemProductName === '') { // Zorg dat het geen lege string is als het NIET NULL is
+            return res.status(400).send('Productnaam voor het item is verplicht.');
+        }
+
+        const parsedQuantity = parseInt(quantity1);
+        // quantity is NOT NULL in de DB, dus zorg voor een geldige numerieke waarde
+        const itemQuantity = isNaN(parsedQuantity) || parsedQuantity < 1 ? 1 : parsedQuantity;
+
+        const parsedUnitPrice = parseFloat(unitPrice1);
+        // unit_price is NOT NULL in de DB, dus zorg voor een geldige numerieke waarde
+        const itemUnitPrice = isNaN(parsedUnitPrice) ? 0.00 : parsedUnitPrice; // Gebruik 0.00 als standaard bij invalid
+
+        // Extra check: als geen product geselecteerd is en de productnaam standaard is, return error.
+        // Dit vangt gevallen af waarin de "-- Selecteer een product --" optie wordt geselecteerd.
+        if (itemProductId === null && itemProductName === 'Onbekend Product') {
+            return res.status(400).send('Selecteer alstublieft een geldig product voor de bestelling.');
+        }
+
+
+        const items = [{
+            product_id: itemProductId,
+            product_name: itemProductName,
+            quantity: itemQuantity,
+            unit_price: itemUnitPrice
+        }];
+
+        await addOrder(newOrderData, items); // Deze aanroep zou nu correct moeten zijn
+
+        res.redirect('/admin');
+        return;
+    } catch (error) {
+        console.error('Error processing test order:', error);
+        next(error); // Geef de fout door aan de Express error handler
+    }
+});
 
 // Admin Dashboard / Hoofdpagina Admin
 router.get("/admin", async (req: Request, res: Response, next: NextFunction) => {
