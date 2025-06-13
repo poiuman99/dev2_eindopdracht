@@ -1,4 +1,4 @@
-// server/config/db.ts
+// server/services/db.ts
 
 import postgres, { Sql } from 'postgres'; // Let op: dit is de 'postgres' library
 import dotenv from 'dotenv';

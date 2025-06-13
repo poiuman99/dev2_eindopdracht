@@ -4,34 +4,33 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
-import expressLayouts from 'express-ejs-layouts'; // <-- ZORG DAT DEZE IMPORT ER WEER IS
+import expressLayouts from 'express-ejs-layouts';
 import path from 'path';
 import routes from './routes';
+// import initializeDatabase from './services/db'; // <-- VERWIJDER DEZE REGEL
+
+// Importeer direct de 'sql' instantie als de default export van './services/db'
+import sql from './services/db'; // <-- VOEG DEZE REGEL TOE! Dit is je database-verbinding
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// De initialisatie van de database (het aanmaken van de 'sql' instantie en de console.log)
+// gebeurt al automatisch wanneer './services/db' wordt ingeladen.
+// Je hoeft hier GEEN aparte functie aan te roepen voor initialisatie.
+// initializeDatabase(); // <-- VERWIJDER DEZE REGEL! Deze functie bestaat niet als een aparte export.
 
 // Middleware voor het parsen van body's
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Configuratie voor EJS en layouts
+// Configuratie voor EJS view engine
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-// --- DE BELANGRIJKE AANPASSINGEN HIER ---
-// 1. Zorg ervoor dat expressLayouts wordt gebruikt
+// Layouts Configuratie
 app.use(expressLayouts);
-
-// 2. Vertel express-ejs-layouts waar je layouts map is en welke layout-file te gebruiken
-// Als je main.ejs DIRECT in server/views/layouts/ staat
-app.set('layout', 'layouts/main'); // <-- Deze regel is cruciaal!
-// Of als 'layouts' de standaard map is in je views, en main.ejs erin staat:
-// app.set('layout', 'main'); // als je app.set('layout extractScripts', true) en app.set('layout extractStyles', true) gebruikt, kunnen layouts in een subfolder.
-// Het is vaak het makkelijkst om de volledige pad relatief aan de views map te geven.
-// Dus als main.ejs in server/views/layouts/main.ejs staat, dan is het 'layouts/main'.
-// --- EINDE AANPASSINGEN ---
-
+app.set('layout', 'layouts/main'); // Dit pad is relatief aan je 'views' map.
 
 // Statische bestanden serveren vanuit de 'public' map
 app.use(express.static(path.join(__dirname, '..', 'public')));

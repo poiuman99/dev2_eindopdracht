@@ -1,68 +1,68 @@
 // server/services/orderService.ts
 
-import sql from "./db"; // Gebruik je eigen db import hier
-import { Order, OrderItem, MonthlyOrdersStats, YearlyRevenueStats, OrderStatus } from "./interfaces";
+import sql  from './db';
+import { Order, OrderItem, MonthlyOrdersStats, YearlyRevenueStats, OrderStatus } from './interfaces';
 
 /**
  * Voeg een nieuwe bestelling toe aan de database.
  * @param newOrderData De basisgegevens van de bestelling (excl. id, order_date, total_cost_price).
  * @param items De lijst met bestelde items (excl. id, order_id, unit_cost_price).
- * @returns De aangemaakte bestelling of null bij falen.
+ * @returns De aangemaakte bestelling of undefined bij falen.
  */
-export const addOrder = async (newOrderData: Omit<Order, 'id' | 'order_date' | 'total_cost_price'>, items: Omit<OrderItem, 'id' | 'order_id' | 'unit_cost_price'>[]): Promise<Order | null> => {
-    // Verwijder total_cost_price uit de insert
-    const { total_price, status, customer_name, notes } = newOrderData;
+// Aangepast: 'unit_cost_price' verwijderd uit de Omit type, want de kolom bestaat niet in de DB
+export const addOrder = async (orderData: Omit<Order, 'id' | 'order_date' | 'total_cost_price'>, items: Omit<OrderItem, 'id' | 'order_id'>[]): Promise<Order | undefined> => {
+    try {
+        // --- Begin Debug logs (optioneel, kan uitcommentariëren of verwijderen als het werkt) ---
+        console.log('--- Debugging addOrder function start ---');
+        console.log('Received orderData:', orderData);
+        console.log('Received items array:', items);
+        if (items && items.length > 0) {
+            items.forEach((item, idx) => {
+                console.log(`Received item ${idx}:`, item);
+            });
+        }
+        console.log('-----------------------------------');
+        // --- Einde Debug logs ---
 
-    const [order] = await sql`
-        INSERT INTO orders (total_price, status, customer_name, notes)
-        VALUES (${total_price}, ${status}, ${customer_name}, ${notes})
-        RETURNING id, order_date, total_price, status, customer_name, notes; -- Update RETURNING
-    `;
+        // 1. Hoofdbestelling invoegen in de 'orders' tabel
+        const [order] = await sql<Order[]>`
+            INSERT INTO orders
+                (customer_name, total_price, status, notes)
+            VALUES
+                (${orderData.customer_name}, ${orderData.total_price}, ${orderData.status}, ${orderData.notes})
+            RETURNING *
+        `;
 
-    if (!order) {
-        console.error("Error adding order: No order data returned.");
-        return null;
+        // 2. Bestelitems invoegen in de 'order_items' tabel
+        if (order && items.length > 0) {
+            for (const item of items) {
+                // --- Begin Debug logs voor item invoeging (optioneel) ---
+                console.log('--- Debugging Item for DB Insert ---');
+                console.log('Order ID:', order.id);
+                console.log('Item Product ID:', typeof item.product_id, item.product_id);
+                console.log('Item Product Name:', typeof item.product_name, item.product_name);
+                console.log('Item Quantity:', typeof item.quantity, item.quantity);
+                console.log('Item Unit Price:', typeof item.unit_price, item.unit_price);
+                console.log('---------------------------------');
+                // --- Einde Debug logs ---
+
+                await sql`
+                    INSERT INTO order_items
+                        (order_id, product_id, product_name, quantity, unit_price)
+                    VALUES
+                        (${order.id}, ${item.product_id}, ${item.product_name}, ${item.quantity}, ${item.unit_price})
+                `;
+            }
+        }
+        
+        // 3. De aangemaakte hoofdbestelling teruggeven
+        return order;
+
+    } catch (error) {
+        console.error('Error adding order:', error);
+        throw error; // Belangrijk: gooi de fout door zodat deze in routes.ts wordt opgevangen
     }
-
-    // Voeg order_id toe aan elk item en insert ze
-    const itemsToInsert = items.map(item => ({
-        ...item,
-        order_id: order.id,
-        // unit_cost_price: 0 // Stel in op 0 als de kolom is verwijderd
-    }));
-
-    // Verwijder unit_cost_price uit de insert
-    const insertedItems = await sql`
-        INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price)
-        VALUES ${sql(itemsToInsert, 'order_id', 'product_id', 'product_name', 'quantity', 'unit_price')}
-        RETURNING id, order_id, product_id, product_name, quantity, unit_price; -- Update RETURNING
-    `;
-
-    // Pas het geretourneerde type aan naar Order, rekening houdend met de eventuele verwijdering van total_cost_price
-    // Maak een tijdelijk object dat overeenkomt met de Order interface
-    const finalOrder: Order = {
-        id: order.id,
-        order_date: order.order_date,
-        total_price: parseFloat(order.total_price),
-        status: order.status as OrderStatus,
-        customer_name: order.customer_name,
-        notes: order.notes,
-        // total_cost_price is hier 0 of afwezig als de kolom is gedropt
-        // Als de kolom echt weg is, dan deze regel weglaten, anders op 0 zetten
-        // total_cost_price: 0,
-        items: insertedItems.map(item => ({
-            id: item.id,
-            order_id: item.order_id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.unit_price),
-            // unit_cost_price: 0 // Ook hier op 0 of weglaten
-        }))
-    };
-    return finalOrder;
 };
-
 
 /**
  * Haalt het aantal bestellingen van vandaag op, gesplitst op status.
@@ -105,7 +105,7 @@ export const getMonthlyOrderStats = async (): Promise<MonthlyOrdersStats[]> => {
         "Juli", "Augustus", "September", "Oktober", "November", "December"
     ];
 
-    orders.forEach(order => { // <-- Deze lijn
+    orders.forEach(order => {
         const orderDate = new Date(order.order_date);
         const monthIndex = orderDate.getMonth();
         const year = orderDate.getFullYear();
@@ -156,7 +156,7 @@ export const getYearlyRevenueStats = async (): Promise<YearlyRevenueStats[]> => 
 
     const statsMap = new Map<number, YearlyRevenueStats>();
 
-    orders.forEach(order => { // <-- Deze lijn
+    orders.forEach(order => {
         const orderDate = new Date(order.order_date);
         const year = orderDate.getFullYear();
 
@@ -176,4 +176,69 @@ export const getYearlyRevenueStats = async (): Promise<YearlyRevenueStats[]> => 
     const sortedStats = Array.from(statsMap.values()).sort((a, b) => a.year - b.year);
 
     return sortedStats;
+};
+
+/**
+ * Haalt alle bestellingen op uit de database.
+ * @returns Een array van Order objecten.
+ */
+export const getOrders = async (): Promise<Order[]> => {
+    try {
+        // Haalt alle orders op, sorteert ze op datum (meest recente eerst)
+        // Let op: 'total_price' komt waarschijnlijk als string, converteer dit indien nodig bij gebruik.
+        const orders = await sql<Order[]>`
+            SELECT
+                id,
+                customer_name,
+                order_date,
+                total_price,
+                status,
+                notes
+            FROM orders
+            ORDER BY order_date DESC;
+        `;
+        return orders;
+    } catch (error) {
+        console.error('Error in getOrders:', error);
+        throw error;
+    }
+};
+export const getOrderDetails = async (orderId: number): Promise<(Order & { items: OrderItem[] }) | undefined> => {
+    try {
+        // Haal de hoofdbestelling op
+        const [order] = await sql<Order[]>`
+            SELECT
+                id,
+                customer_name,
+                order_date,
+                total_price,
+                status,
+                notes
+            FROM orders
+            WHERE id = ${orderId};
+        `;
+
+        if (!order) {
+            return undefined; // Bestelling niet gevonden
+        }
+
+        // Haal de items van deze bestelling op
+        const items = await sql<OrderItem[]>`
+            SELECT
+                id,
+                product_id,
+                product_name,
+                quantity,
+                unit_price
+            FROM order_items
+            WHERE order_id = ${orderId};
+        `;
+
+        // Voeg de items toe aan het bestellingsobject
+        return { ...order, items };
+
+    } catch (error) {
+        console.error(`Error in getOrderDetails for orderId ${orderId}:`, error);
+        throw error;
+    }
 };

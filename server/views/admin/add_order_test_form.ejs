@@ -8,7 +8,7 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
+            max-width: 800px; /* Iets breder voor items */
             margin: 40px auto;
         }
         .form-container h1 {
@@ -58,6 +58,7 @@
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.3s ease;
+            font-size: 16px;
         }
         .btn-primary {
             background-color: #28a745; /* Groen */
@@ -75,15 +76,79 @@
         .btn-secondary:hover {
             background-color: #5a6268;
         }
-        .item-details {
-            border: 1px dashed #ccc;
+        .btn-danger {
+            background-color: #dc3545; /* Rood */
+            color: white;
+            border: none;
+            padding: 5px 10px; /* Smaller voor verwijderen */
+            font-size: 14px;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .btn-info {
+            background-color: #17a2b8; /* Blauw */
+            color: white;
+            border: none;
+            padding: 8px 15px; /* iets kleiner dan primary/secondary */
+            font-size: 15px;
+        }
+        .btn-info:hover {
+            background-color: #138496;
+        }
+
+        /* Styling voor dynamische items */
+        .order-item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 50px; /* Product, Aantal, Prijs, Verwijderknop */
+            gap: 15px;
+            align-items: end; /* Knoppen en inputs op dezelfde lijn */
+            margin-bottom: 15px;
             padding: 15px;
+            border: 1px solid #eee;
             border-radius: 5px;
-            margin-top: 15px;
-            background-color: #f9f9f9;
+            background-color: #fcfcfc;
+        }
+        .order-item-row .form-group {
+            margin-bottom: 0; /* Geen extra marge in de rij */
+        }
+        .order-item-row .form-control, .order-item-row .form-select {
+            width: 100%; /* Maak inputs 100% breed in hun grid kolom */
+        }
+        .order-item-row label {
+            font-size: 0.9em;
+            color: #777;
+            margin-bottom: 4px;
+        }
+        .order-item-controls {
+            text-align: right; /* Verwijderknop rechts uitlijnen */
+        }
+        #totalPriceDisplay {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #28a745;
+            text-align: right;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9f7ef;
+            border-radius: 5px;
+            border: 1px solid #28a745;
+        }
+        .total-price-group {
+            margin-bottom: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .total-price-group label {
+            font-size: 1.2em;
+            font-weight: bold;
         }
     </style>
 
+   
         <nav class="navbar">
             <a href="/" class="logo">Frietkot Beheersysteem</a>
             <div class="nav-links">
@@ -91,29 +156,24 @@
                 <a href="/admin/products" class="nav-item">Producten</a>
             </div>
         </nav>
-    
+  
 
     <div class="container">
         <div class="form-container">
             <h1><%= title %></h1>
             <p><%= message %></p>
 
-            <form action="/admin/test-order/add" method="POST">
+            <form id="orderForm" action="/admin/test-order/add" method="POST">
                 <div class="form-group">
                     <label for="customerName">Klantnaam (optioneel):</label>
                     <input type="text" id="customerName" name="customerName" class="form-control" placeholder="Anonieme klant">
                 </div>
 
                 <div class="form-group">
-                    <label for="totalPrice">Totaalprijs (€):</label>
-                    <input type="number" id="totalPrice" name="totalPrice" step="0.01" class="form-control" required value="10.00">
-                </div>
-
-                <div class="form-group">
                     <label for="status">Status:</label>
                     <select id="status" name="status" class="form-select" required>
                         <option value="completed">Voltooid</option>
-                        <option value="pending">In behandeling</option>
+                        <option value="pending" selected>In behandeling</option>
                         <option value="cancelled">Geannuleerd</option>
                     </select>
                 </div>
@@ -123,70 +183,143 @@
                     <textarea id="notes" name="notes" rows="3" class="form-textarea" placeholder="Extra notities over de bestelling"></textarea>
                 </div>
 
-                <h3 style="margin-top: 30px;">Test Bestelitems (minimaal één item)</h3>
-                <div class="item-details">
-                    <div class="form-group">
-                        <label for="selectedProduct">Kies Product:</label>
-                        <select id="selectedProduct" name="selectedProductId" class="form-select" required>
-                            <option value="">-- Selecteer een product --</option>
-                            <% if (products && products.length > 0) { %>
-                                <% products.forEach(product => { %>
-                                    <option 
-                                        value="<%= product.id %>" 
-                                        data-product-name="<%= product.name %>" 
-                                        data-unit-price="<%= product.price %>"
-                                    >
-                                        <%= product.name %> (€<%= product.price.toFixed(2) %>)
-                                    </option>
-                                <% }); %>
-                            <% } else { %>
-                                <option value="" disabled>Geen producten gevonden</option>
-                            <% } %>
-                        </select>
+                <h3 style="margin-top: 30px;">Bestelitems</h3>
+                <div id="orderItemsContainer">
                     </div>
 
-                    <div class="form-group">
-                        <label for="quantity1">Aantal:</label>
-                        <input type="number" id="quantity1" name="quantity1" value="1" min="1" class="form-control" required>
-                    </div>
+                <button type="button" id="addItemBtn" class="btn btn-info" style="margin-bottom: 20px;">+ Item Toevoegen</button>
 
-                    <input type="hidden" id="productNameHidden" name="productName1">
-                    <input type="hidden" id="unitPriceHidden" name="unitPrice1">
+                <div class="total-price-group">
+                    <label>Totaalprijs:</label>
+                    <span id="totalPriceDisplay">&euro;0.00</span>
+                    <input type="hidden" name="totalPrice" id="hiddenTotalPrice">
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Bestelling Toevoegen</button>
+                    <button type="submit" class="btn btn-primary">Bestelling Plaatsen</button>
                     <a href="/admin" class="btn btn-secondary">Annuleer</a>
                 </div>
             </form>
         </div>
         </div>
-   
-   
+ 
 
-  
+    <template id="orderItemTemplate">
+        <div class="order-item-row">
+            <div class="form-group">
+                <label>Product:</label>
+                <select name="items[INDEX][productId]" class="form-select product-select" required>
+                    <option value="">-- Selecteer een product --</option>
+                    <% products.forEach(product => { %>
+                        <option 
+                            value="<%= product.id %>" 
+                            data-product-name="<%= product.name %>" 
+                            data-unit-price="<%= product.price %>"
+                        >
+                            <%= product.name %> (&euro;<%= product.price.toFixed(2) %>)
+                        </option>
+                    <% }); %>
+                </select>
+                <input type="hidden" name="items[INDEX][productName]" class="product-name-hidden">
+                <input type="hidden" name="items[INDEX][unitPrice]" class="unit-price-hidden">
+            </div>
+            <div class="form-group">
+                <label>Aantal:</label>
+                <input type="number" name="items[INDEX][quantity]" value="1" min="1" class="form-control item-quantity" required>
+            </div>
+            <div class="form-group">
+                <label>Prijs per stuk:</label>
+                <span class="unit-price-display">&euro;0.00</span>
+            </div>
+            <div class="order-item-controls">
+                <button type="button" class="btn btn-danger remove-item-btn">X</button>
+            </div>
+        </div>
+    </template>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const selectedProductDropdown = document.getElementById('selectedProduct');
-            const productNameHidden = document.getElementById('productNameHidden');
-            const unitPriceHidden = document.getElementById('unitPriceHidden');
+            const orderItemsContainer = document.getElementById('orderItemsContainer');
+            const addItemBtn = document.getElementById('addItemBtn');
+            const orderItemTemplate = document.getElementById('orderItemTemplate');
+            const totalPriceDisplay = document.getElementById('totalPriceDisplay');
+            const hiddenTotalPrice = document.getElementById('hiddenTotalPrice');
+            let itemIndex = 0; // Unieke index voor elk item
 
-            function updateHiddenFields() {
-                const selectedOption = selectedProductDropdown.options[selectedProductDropdown.selectedIndex];
+            // Functie om een nieuwe item-rij toe te voegen
+            function addItemRow() {
+                const clone = document.importNode(orderItemTemplate.content, true);
+                const newRow = clone.querySelector('.order-item-row');
+
+                // Update namen en IDs met de unieke index
+                newRow.innerHTML = newRow.innerHTML.replace(/INDEX/g, itemIndex);
+                
+                // Koppel event listeners
+                const productSelect = newRow.querySelector('.product-select');
+                const itemQuantity = newRow.querySelector('.item-quantity');
+                const removeItemBtn = newRow.querySelector('.remove-item-btn');
+
+                productSelect.addEventListener('change', () => updateItemFields(newRow));
+                itemQuantity.addEventListener('input', () => calculateOrderTotal()); // Input event voor direct bijwerken
+                removeItemBtn.addEventListener('click', () => removeItemRow(newRow));
+
+                orderItemsContainer.appendChild(newRow);
+                updateItemFields(newRow); // Initialiseer de prijs van het zojuist toegevoegde item
+                calculateOrderTotal(); // Herbereken het totaal
+                itemIndex++;
+            }
+
+            // Functie om een item-rij te verwijderen
+            function removeItemRow(row) {
+                row.remove();
+                calculateOrderTotal(); // Herbereken het totaal na verwijdering
+            }
+
+            // Functie om de prijsvelden van een item bij te werken
+            function updateItemFields(row) {
+                const productSelect = row.querySelector('.product-select');
+                const productNameHidden = row.querySelector('.product-name-hidden');
+                const unitPriceHidden = row.querySelector('.unit-price-hidden');
+                const unitPriceDisplay = row.querySelector('.unit-price-display');
+
+                const selectedOption = productSelect.options[productSelect.selectedIndex];
+
                 if (selectedOption && selectedOption.value) {
                     productNameHidden.value = selectedOption.dataset.productName;
                     unitPriceHidden.value = selectedOption.dataset.unitPrice;
+                    unitPriceDisplay.textContent = `€${parseFloat(selectedOption.dataset.unitPrice).toFixed(2)}`;
                 } else {
+                    // Reset als geen product is geselecteerd
                     productNameHidden.value = '';
                     unitPriceHidden.value = '';
+                    unitPriceDisplay.textContent = '€0.00';
                 }
+                calculateOrderTotal(); // Herbereken totaal als itemvelden veranderen
             }
 
-            // Update velden bij laden van de pagina (als er een standaardselectie is)
-            updateHiddenFields();
+            // Functie om de totale prijs van de bestelling te berekenen
+            function calculateOrderTotal() {
+                let total = 0;
+                const itemRows = orderItemsContainer.querySelectorAll('.order-item-row');
 
-            // Update velden wanneer de selectie verandert
-            selectedProductDropdown.addEventListener('change', updateHiddenFields);
+                itemRows.forEach(row => {
+                    const quantityInput = row.querySelector('.item-quantity');
+                    const unitPriceHidden = row.querySelector('.unit-price-hidden');
+
+                    const quantity = parseInt(quantityInput.value) || 0;
+                    const unitPrice = parseFloat(unitPriceHidden.value) || 0;
+
+                    total += (quantity * unitPrice);
+                });
+
+                totalPriceDisplay.textContent = `€${total.toFixed(2)}`;
+                hiddenTotalPrice.value = total.toFixed(2); // Vul het verborgen veld voor de backend
+            }
+
+            // Event listeners
+            addItemBtn.addEventListener('click', addItemRow);
+
+            // Voeg bij het laden van de pagina direct één item-rij toe
+            addItemRow();
         });
     </script>

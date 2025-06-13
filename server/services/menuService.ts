@@ -226,3 +226,59 @@ export async function deleteProduct(id: number): Promise<void> {
         throw new Error(`Could not delete product ${id}: ` + (error.message || error));
     }
 }
+// Functies voor categoriebeheer
+export const addCategory = async (name: string) => {
+    try {
+        const [newCategory] = await sql`
+            INSERT INTO categories (name)
+            VALUES (${name})
+            RETURNING id, name;
+        `;
+        return newCategory;
+    } catch (error) {
+        console.error('Error adding category:', error);
+        throw error;
+    }
+};
+
+export const getCategoryById = async (id: number) => {
+    try {
+        const [category] = await sql`
+            SELECT id, name FROM categories WHERE id = ${id};
+        `;
+        return category;
+    } catch (error) {
+        console.error(`Error getting category by ID ${id}:`, error);
+        throw error;
+    }
+};
+
+export const updateCategory = async (id: number, name: string) => {
+    try {
+        const [updatedCategory] = await sql`
+            UPDATE categories
+            SET name = ${name}
+            WHERE id = ${id}
+            RETURNING id, name;
+        `;
+        return updatedCategory;
+    } catch (error) {
+        console.error(`Error updating category ID ${id}:`, error);
+        throw error;
+    }
+};
+
+export const deleteCategory = async (id: number) => {
+    try {
+        // Overweeg hier een check of er nog producten aan deze categorie gekoppeld zijn.
+        // Zo ja, wil je misschien eerst die producten loskoppelen of de gebruiker waarschuwen.
+        // Voor nu, deleten we gewoon.
+        const [deletedCategory] = await sql`
+            DELETE FROM categories WHERE id = ${id} RETURNING id;
+        `;
+        return deletedCategory;
+    } catch (error) {
+        console.error(`Error deleting category ID ${id}:`, error);
+        throw error;
+    }
+};

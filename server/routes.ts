@@ -1,13 +1,14 @@
 // server/routes.ts
 
-import express, { Request, Response, Router, NextFunction } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
 import sharp from "sharp";
 import rimraf from "rimraf";
+import { getOrders, getOrderDetails } from './services/orderService';
 
-const router: Router = express.Router();
+const router = express.Router();
 
 import {
     getProductsByCategoryName,
@@ -16,7 +17,11 @@ import {
     getProductById,
     addProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    addCategory,      // Nieuw
+    getCategoryById,  // Nieuw
+    updateCategory,   // Nieuw
+    deleteCategory    // Nieuw
 } from "./services/menuService";
 
 // Importeer functies uit orderService
@@ -164,11 +169,162 @@ router.get("/categorie/:categoryName", async (req: Request, res: Response, next:
     }
 });
 
+// Admin Categorieën Lijst
+router.get("/admin/categories", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const categories = await getAllCategories();
+        res.render("admin/categories", { // Verwijst naar admin/categories.ejs
+            title: "Categorieën Beheren",
+            message: "Overzicht van alle productcategorieën.",
+            categories: categories
+        });
+    } catch (error) {
+        console.error('Error handling /admin/categories route:', error);
+        next(error);
+    }
+});
+
+// Toon Categorie Toevoegen Formulier
+router.get("/admin/categories/add", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        res.render("admin/category_form", { // Verwijst naar admin/category_form.ejs
+            title: "Categorie Toevoegen",
+            message: "Vul de naam in voor de nieuwe categorie.",
+            category: null // Geen bestaande categorie om te bewerken
+        });
+    } catch (error) {
+        console.error('Error handling /admin/categories/add GET route:', error);
+        next(error);
+    }
+});
+
+// Verwerk Categorie Toevoegen Formulier
+router.post("/admin/categories/add", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { name } = req.body;
+        if (!name || name.trim() === '') {
+            return res.status(400).send('Categorienaam is verplicht.');
+        }
+        await addCategory(name.trim());
+        res.redirect('/admin/categories');
+    } catch (error: any) { // Type 'any' voor error, zoals eerder besproken
+        console.error('Error handling /admin/categories/add POST route:', error);
+        next(error);
+    }
+});
+
+// Toon Categorie Bewerken Formulier
+router.get("/admin/categories/edit/:id", async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+        const categoryId = parseInt(req.params.id);
+        if (isNaN(categoryId)) {
+            return res.status(400).send('Ongeldig categorie ID.');
+        }
+        const category = await getCategoryById(categoryId);
+        if (!category) {
+            return res.status(404).send('Categorie niet gevonden.');
+        }
+        res.render("admin/category_form", { // Hergebruik formulier voor bewerken
+            title: `Categorie Bewerken: ${category.name}`,
+            message: `Bewerk de naam voor ${category.name}.`,
+            category: category
+        });
+    } catch (error: any) { // Type 'any' voor error
+        console.error('Error handling /admin/categories/edit GET route:', error);
+        next(error);
+    }
+});
+
+// Verwerk Categorie Bewerken Formulier
+router.post("/admin/categories/edit/:id", async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+        const categoryId = parseInt(req.params.id);
+        if (isNaN(categoryId)) {
+            return res.status(400).send('Ongeldig categorie ID.');
+        }
+        const { name } = req.body;
+        if (!name || name.trim() === '') {
+            return res.status(400).send('Categorienaam is verplicht.');
+        }
+        const updatedCategory = await updateCategory(categoryId, name.trim());
+        if (!updatedCategory) {
+            return res.status(404).send('Categorie niet gevonden voor update.');
+        }
+        res.redirect('/admin/categories');
+    } catch (error: any) { // Type 'any' voor error
+        console.error('Error handling /admin/categories/edit POST route:', error);
+        next(error);
+    }
+});
+
+// Categorie Verwijderen
+router.post("/admin/categories/delete/:id", async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+        const categoryId = parseInt(req.params.id);
+        if (isNaN(categoryId)) {
+            return res.status(400).send('Ongeldig categorie ID.');
+        }
+        await deleteCategory(categoryId);
+        res.redirect('/admin/categories');
+    } catch (error: any) {
+        console.error('Error deleting category:', error);
+        if (error.code === '23503') { // PostgreSQL code for foreign_key_violation
+            res.status(400).send('Kan categorie niet verwijderen: er zijn nog producten aan gekoppeld.');
+        } else {
+            next(error);
+        }
+    }
+});
+
+
 
 // =========================================================================
 // ADMIN ROUTES
 // =========================================================================
 
+// AANGEPASTE ROUTE VOOR BESTELLINGSDETAILS
+router.get("/admin/orders/:id", async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+        // req.params.id is nu zeker een string dankzij Request<{ id: string }>
+        const orderId = parseInt(req.params.id); // Haal het ID uit de URL
+        if (isNaN(orderId)) {
+            return res.status(400).send('Ongeldig bestelling ID.');
+        }
+
+        const order = await getOrderDetails(orderId);
+
+        if (!order) {
+            return res.status(404).render('error', {
+                message: 'Bestelling niet gevonden',
+                error: { status: 404 },
+                title: 'Bestelling niet gevonden'
+            });
+        }
+
+        res.render('admin/order-details', {
+            order,
+            title: `Details Bestelling #${order.id}`
+        });
+
+    } catch (error) {
+        console.error('Error fetching order details:', error);
+        next(error);
+    }
+});
+
+// AANGEPASTE ROUTE VOOR BESTELLINGEN OVERZICHT
+router.get("/admin/orders", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const orders = await getOrders();
+        res.render('admin/orders', {
+            orders,
+            title: 'Bestellingen Overzicht'
+        });
+    } catch (error) {
+        console.error('Error fetching orders:', error);
+        next(error);
+    }
+});
 // NIEUWE ROUTE: Toon Test Bestelling Toevoegen Formulier
 router.get("/admin/test-order/add", async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -187,66 +343,86 @@ router.get("/admin/test-order/add", async (req: Request, res: Response, next: Ne
     }
 });
 
-router.post("/admin/test-order/add", async (req: Request, res: Response, next: NextFunction) => {
+// AANGEPASTE NIEUWE ROUTE: Verwerk Test Bestelling Toevoegen Formulier
+router.post("/admin/test-order/add", upload.none(), async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { customerName, totalPrice, status, notes, selectedProductId, productName1, quantity1, unitPrice1 } = req.body;
+        const { customerName, status, notes, items: rawItems } = req.body;
 
         // --- Validatie en Sanering van de hoofd bestelgegevens ---
-        const parsedTotalPrice = parseFloat(totalPrice);
-        if (isNaN(parsedTotalPrice)) {
-            return res.status(400).send('Ongeldige totale prijs opgegeven.');
-        }
         if (!status) {
-            return res.status(400).send('Status is verplicht.');
+            res.status(400).send('Status is verplicht.'); // <-- GEEN 'return' HIER
+            return; // Deze 'return' beëindigt de functie vroegtijdig.
+        }
+
+        let calculatedTotalPrice = 0;
+        const processedItems = [];
+
+        // --- Verwerk en valideer elk item in de array ---
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+            for (const item of rawItems) {
+                const parsedProductId = parseInt(item.productId);
+                const itemProductId = isNaN(parsedProductId) ? null : parsedProductId;
+
+                const itemProductName = item.productName ? String(item.productName).trim() : 'Onbekend Product';
+                if (itemProductName === '') {
+                    res.status(400).send('Productnaam voor een item is verplicht.'); // <-- GEEN 'return' HIER
+                    return; // Deze 'return' beëindigt de functie vroegtijdig.
+                }
+
+                const parsedQuantity = parseInt(item.quantity);
+                const itemQuantity = isNaN(parsedQuantity) || parsedQuantity < 1 ? 1 : parsedQuantity;
+
+                const parsedUnitPrice = parseFloat(item.unitPrice);
+                const itemUnitPrice = isNaN(parsedUnitPrice) ? 0.00 : parsedUnitPrice;
+
+                if (itemProductId === null && itemProductName === 'Onbekend Product') {
+                    res.status(400).send('Selecteer alstublieft een geldig product voor de bestelling.'); // <-- GEEN 'return' HIER
+                    return; // Deze 'return' beëindigt de functie vroegtijdig.
+                }
+
+                processedItems.push({
+                    product_id: itemProductId,
+                    product_name: itemProductName,
+                    quantity: itemQuantity,
+                    unit_price: itemUnitPrice
+                });
+
+                calculatedTotalPrice += (itemQuantity * itemUnitPrice);
+            }
+        } else {
+            res.status(400).send('Geen bestelitems opgegeven.'); // <-- GEEN 'return' HIER
+            return; // Deze 'return' beëindigt de functie vroegtijdig.
         }
 
         const newOrderData = {
-            total_price: parsedTotalPrice,
+            total_price: calculatedTotalPrice,
             status: status,
-            customer_name: customerName || null, // Converteert lege string of undefined naar null
-            notes: notes || null                // Converteert lege string of undefined naar null
+            customer_name: customerName || null,
+            notes: notes || null
         };
 
-        // --- Validatie en Sanering van de bestelitem gegevens ---
-        const parsedSelectedProductId = parseInt(selectedProductId);
-        // product_id is nullable in de DB, dus NaN wordt null
-        const itemProductId = isNaN(parsedSelectedProductId) ? null : parsedSelectedProductId;
+// server/routes.ts (binnen de forEach loop voor processedItems)
 
-        // product_name is NOT NULL in de DB, dus zorg voor een standaardwaarde als leeg
-        const itemProductName = productName1 ? String(productName1).trim() : 'Onbekend Product';
-        if (itemProductName === '') { // Zorg dat het geen lege string is als het NIET NULL is
-            return res.status(400).send('Productnaam voor het item is verplicht.');
-        }
+    console.log('--- Debugging Order Data ---');
+    console.log('newOrderData:', newOrderData);
+    processedItems.forEach((item, index) => {
+        console.log(`Item ${index}:`, {
+            productId: { type: typeof item.product_id, value: item.product_id }, // <-- AANGEPAST
+            productName: { type: typeof item.product_name, value: item.product_name }, // <-- AANGEPAST
+            quantity: { type: typeof item.quantity, value: item.quantity }, // <-- AANGEPAST
+            unitPrice: { type: typeof item.unit_price, value: item.unit_price } // <-- AANGEPAST
+        });
+    });
+    console.log('--------------------------');
 
-        const parsedQuantity = parseInt(quantity1);
-        // quantity is NOT NULL in de DB, dus zorg voor een geldige numerieke waarde
-        const itemQuantity = isNaN(parsedQuantity) || parsedQuantity < 1 ? 1 : parsedQuantity;
+    await addOrder(newOrderData, processedItems);
 
-        const parsedUnitPrice = parseFloat(unitPrice1);
-        // unit_price is NOT NULL in de DB, dus zorg voor een geldige numerieke waarde
-        const itemUnitPrice = isNaN(parsedUnitPrice) ? 0.00 : parsedUnitPrice; // Gebruik 0.00 als standaard bij invalid
+        res.redirect('/admin'); // <-- VERWIJDER HIER HET 'return' KEYWORD
+        // De functie beëindigt hier vanzelf de executie voor deze request.
 
-        // Extra check: als geen product geselecteerd is en de productnaam standaard is, return error.
-        // Dit vangt gevallen af waarin de "-- Selecteer een product --" optie wordt geselecteerd.
-        if (itemProductId === null && itemProductName === 'Onbekend Product') {
-            return res.status(400).send('Selecteer alstublieft een geldig product voor de bestelling.');
-        }
-
-
-        const items = [{
-            product_id: itemProductId,
-            product_name: itemProductName,
-            quantity: itemQuantity,
-            unit_price: itemUnitPrice
-        }];
-
-        await addOrder(newOrderData, items); // Deze aanroep zou nu correct moeten zijn
-
-        res.redirect('/admin');
-        return;
     } catch (error) {
         console.error('Error processing test order:', error);
-        next(error); // Geef de fout door aan de Express error handler
+        next(error); // Fouten doorgeven aan de volgende middleware (of error handler)
     }
 });
 
