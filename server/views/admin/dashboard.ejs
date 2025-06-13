@@ -1,7 +1,7 @@
 <div class="admin-dashboard">
     <h1><%= title %></h1>
     <p><%= message %></p>
-    <a href="/" class="<%= (typeof title !== 'undefined' && title === 'Frietkot Beheersysteem') ? 'active' : '' %>">Home</a>
+    <a href="/" class="home-btn">Home</a>
  
 
     <div class="dashboard-links">
@@ -55,6 +55,24 @@
         transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
         flex: 1 1 calc(50% - 20px); /* Twee knoppen per rij op bredere schermen */
         max-width: 300px; /* Max breedte per knop */
+    }
+    .home-btn {
+        background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+        color: #fff !important;
+        padding: 1.2rem 2.5rem;
+        border-radius: 8px;
+        font-weight: bold;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(106,17,203,0.2);
+        transition: background 0.3s, color 0.3s, transform 0.2s;
+        margin-bottom: 25px;
+        display: inline-block;
+    }
+
+    .admin-dashboard a.active:hover {
+        background: linear-gradient(90deg, #2575fc 0%, #6a11cb 100%);
+        color: #FFD700 !important;
+        transform: translateY(-3px) scale(1.04);
     }
 
     .dashboard-btn:hover {
